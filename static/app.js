@@ -1,4 +1,4 @@
-/* ============ PyRunner v2 — frontend ============ */
+/* ============ zach-runner — frontend ============ */
 const $ = (id) => document.getElementById(id);
 let VIEW = 'overview';
 let SCRIPTS = [];
@@ -8,16 +8,45 @@ let CONSOLE_SINCE = 0;
 let CONSOLE_PAUSE = false;
 let CONSOLE_FOLLOW = true;
 let WH_LOGS = [];
-let WH_STATS = null;
-let LAUNCH = { id: null, analysis: null, qa: [] };
-let NEW_TPL = 'blank';
+let LAUNCH = null;
+let NEW_TPL = 'py_blank';
+let EDITOR_PATH = null;
 
 const SENSITIVE_RE = /(pass\s*word|mot\s*de\s*passe|\bmdp\b|secret|token|api[\s_\-]*key|clé[\s_\-]*|private|pwd\b|code\s*pin)/i;
 
+/* ---------------- icones SVG ---------------- */
+const _P = {
+  play: '<path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none"/>',
+  stop: '<rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none"/>',
+  restart: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  terminal: '<path d="M4 17l6-6-6-6"/><path d="M12 19h8"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  alert: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  refresh: '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10"/><path d="M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/>',
+  box: '<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  zap: '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+};
+function icon(name, size) {
+  size = size || 14;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${_P[name] || _P.info}</svg>`;
+}
+const ACT_ICON = { play: 'play', stop: 'stop', ok: 'check', error: 'alert', upload: 'upload', project: 'folder', webhook: 'globe', refresh: 'refresh', trash: 'trash', edit: 'edit', lock: 'lock', info: 'info', package: 'box' };
+const RT_LABEL = { python: 'Python', node: 'Node.js', bash: 'Shell', custom: 'Perso' };
+
 /* ---------------- utils ---------------- */
-function toast(msg, ok = true) {
+function toast(msg, ok) {
+  ok = ok === undefined ? true : ok;
   const el = $('toast');
-  el.textContent = (ok ? '✅ ' : '❌ ') + msg;
+  el.textContent = msg;
   el.classList.remove('hidden');
   el.style.borderColor = ok ? '#34d399' : '#f87171';
   clearTimeout(el._t);
@@ -43,26 +72,33 @@ function fmtDur(s) {
   if (s < 3600) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
   return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
 }
-async function api(url, opts = {}) {
+function fmtSize(b) {
+  if (b == null) return '';
+  if (b < 1024) return b + ' o';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' Ko';
+  return (b / 1024 / 1024).toFixed(1) + ' Mo';
+}
+async function api(url, opts) {
+  opts = opts || {};
   const r = await fetch(url, opts);
-  if (r.status === 401) { location.href = '/login'; throw new Error('Session expirée'); }
+  if (r.status === 401) { location.href = '/login'; throw new Error('Session expiree'); }
   const data = await r.json().catch(() => ({}));
   if (!data.ok && !opts.allowFail) throw new Error(data.error || data.message || 'Erreur serveur');
   return data;
 }
 function statusPill(s, detached) {
-  if (s === 'running') return `<span class="pill pill-running"><span class="pulse">●</span> en cours${detached ? ' (détaché)' : ''}</span>`;
-  if (s === 'error') return '<span class="pill pill-error">● erreur</span>';
-  return '<span class="pill pill-stopped">● arrêté</span>';
+  if (s === 'running') return `<span class="pill pill-running"><span class="pill-dot pulse"></span> En cours${detached ? ' (detache)' : ''}</span>`;
+  if (s === 'error') return '<span class="pill pill-error">Erreur</span>';
+  return '<span class="pill pill-stopped">Arrete</span>';
 }
 function closeModal(id) { $(id).classList.add('hidden'); }
 
 /* ---------------- navigation ---------------- */
 const TITLES = {
-  overview: ['Vue d\'ensemble', 'Tout ce qui se passe sur ton serveur, en un coup d\'œil.'],
-  scripts: ['Scripts', 'Tes programmes Python : ils tournent même si tu fermes cette page.'],
+  overview: ["Vue d'ensemble", "Tout ce qui se passe sur le serveur, en un coup d'oeil."],
+  scripts: ['Scripts', 'Programmes et projets : ils tournent meme si vous fermez cette page.'],
   detail: ['Script', 'Console interactive, configuration et historique.'],
-  webhooks: ['Webhooks', 'Chaque appel reçu, journalisé dans les moindres détails.'],
+  webhooks: ['Webhooks', 'Chaque appel recu, journalise dans les moindres details.'],
   help: ['Aide', 'Tout comprendre en 2 minutes.'],
 };
 function showView(name) {
@@ -73,9 +109,9 @@ function showView(name) {
     if (nav) nav.classList.toggle('active', v === name || (name === 'detail' && v === 'scripts'));
   }
   $('sidebar').classList.remove('open');
-  const [t, s] = TITLES[name];
-  $('page-title').textContent = name === 'detail' && DETAIL_DATA ? DETAIL_DATA.name : t;
-  $('page-sub').textContent = s;
+  const t = TITLES[name];
+  $('page-title').textContent = name === 'detail' && DETAIL_DATA ? DETAIL_DATA.name : t[0];
+  $('page-sub').textContent = t[1];
   if (name === 'overview') loadOverview();
   if (name === 'scripts') loadScripts();
   if (name === 'webhooks') { loadWhCfg(); loadWhLogs(); }
@@ -84,8 +120,8 @@ function showView(name) {
 
 /* ---------------- vue d'ensemble ---------------- */
 function chartHTML(perHour) {
-  if (!perHour || !perHour.length) return '<div class="empty-note">Aucune donnée</div>';
-  const max = Math.max(...perHour, 1);
+  if (!perHour || !perHour.length) return '<div class="empty-note">Aucune donnee</div>';
+  const max = Math.max.apply(null, perHour.concat([1]));
   return perHour.map((v, i) => {
     const h = v ? Math.max(8, Math.round((v / max) * 100)) : 4;
     const label = i === 23 ? 'cette heure' : `il y a ${23 - i}h`;
@@ -96,27 +132,36 @@ async function loadOverview() {
   try {
     const d = await api('/api/overview');
     const s = d.stats;
-    $('ov-stats').innerHTML = `
-      <div class="stat-card" style="--g:linear-gradient(90deg,#34d399,#22d3ee)"><div class="i">⚡</div><div class="v">${s.running}</div><div class="l">en cours</div></div>
-      <div class="stat-card" style="--g:linear-gradient(90deg,#6366f1,#a855f7)"><div class="i">📜</div><div class="v">${s.scripts_total}</div><div class="l">scripts</div></div>
-      <div class="stat-card" style="--g:linear-gradient(90deg,#22d3ee,#6366f1)"><div class="i">🏁</div><div class="v">${s.total_runs}</div><div class="l">exécutions</div></div>
-      <div class="stat-card" style="--g:linear-gradient(90deg,#a855f7,#ec4899)"><div class="i">🎯</div><div class="v">${s.success_rate == null ? '–' : s.success_rate + '%'}</div><div class="l">réussite</div></div>
-      <div class="stat-card" style="--g:linear-gradient(90deg,#fbbf24,#f97316)"><div class="i">🔔</div><div class="v">${s.webhooks_24h}</div><div class="l">webhooks 24h</div></div>
-      <div class="stat-card" style="--g:linear-gradient(90deg,#34d399,#a3e635)"><div class="i">💓</div><div class="v" style="font-size:1.2rem;padding:.3rem 0">${fmtDur(s.uptime_s)}</div><div class="l">serveur en ligne</div></div>`;
+    const cards = [
+      ['zap', '#34d399', s.running, 'en cours'],
+      ['file', '#6366f1', s.scripts_total, 'scripts'],
+      ['clock', '#22d3ee', s.total_runs, 'executions'],
+      ['check', '#a855f7', s.success_rate == null ? '–' : s.success_rate + '%', 'reussite'],
+      ['globe', '#fbbf24', s.webhooks_24h, 'webhooks 24h'],
+      ['info', '#34d399', `<span style="font-size:1.2rem">${fmtDur(s.uptime_s)}</span>`, 'serveur en ligne'],
+    ];
+    $('ov-stats').innerHTML = cards.map(c =>
+      `<div class="stat-card"><div class="i" style="color:${c[1]}">${icon(c[0], 20)}</div><div class="v">${c[2]}</div><div class="l">${c[3]}</div></div>`).join('');
     SCRIPTS = d.scripts;
     updateNavCounts(d.scripts, s.webhooks_total);
     $('ov-running').innerHTML = d.running.length ? d.running.map(r => `
       <div class="ov-run" onclick="openScript('${r.id}')">
         <span class="dot dot-ok pulse"></span>
         <div class="flex-1"><div class="nm">${esc(r.name)}</div>
-        <div class="mt">PID ${r.pid ?? '?'} · depuis ${fmtTime(r.started_at)} · ${r.answers_sent} réponse(s)</div></div>
-        ${r.waiting ? '<span class="pill pill-wait">💬 réponds-moi</span>' : statusPill(r.status)}
+        <div class="mt">PID ${r.pid ?? '?'} · depuis ${fmtTime(r.started_at)} · ${r.answers_sent} reponse(s)</div></div>
+        ${r.waiting ? '<span class="pill pill-wait">Reponse requise</span>' : statusPill(r.status)}
       </div>`).join('')
-      : '<div class="empty-note">Aucun script en cours.<br><button class="link" onclick="showView(\'scripts\')">Lancer un script →</button></div>';
+      : '<div class="empty-note">Aucun script en cours.<br><button class="link" onclick="showView(\'scripts\')">Lancer un script</button></div>';
     $('ov-activity').innerHTML = d.activity.length ? d.activity.map(a => `
-      <div class="act"><span>${a.icon}</span><span class="flex-1">${esc(a.text)}</span><span class="t">${fmtTime(a.t)}</span></div>`).join('')
-      : '<div class="empty-note">Pas encore d\'activité.</div>';
+      <div class="act"><span class="act-ico">${icon(ACT_ICON[a.icon] || 'info', 14)}</span><span class="flex-1">${esc(a.text)}</span><span class="t">${fmtTime(a.t)}</span></div>`).join('')
+      : '<div class="empty-note">Pas encore d\'activite.</div>';
     $('ov-chart').innerHTML = chartHTML(d.webhook.per_hour);
+    const rt = d.runtimes || {};
+    $('ov-runtimes').innerHTML = ['python', 'node', 'bash'].map(k => {
+      const r = rt[k] || {};
+      return `<div class="rt-row"><span class="dot ${r.ok ? 'dot-ok' : 'dot-err'}"></span><strong>${RT_LABEL[k]}</strong><span class="hint">${esc(r.info || '')}</span></div>`;
+    }).join('');
+    setHealth(true);
   } catch (e) { console.error(e); setHealth(false); }
 }
 function updateNavCounts(scripts, whTotal) {
@@ -141,17 +186,21 @@ async function loadScripts() {
     $('scripts-grid').innerHTML = d.scripts.map(s => `
       <div class="card script-card ${s.status === 'running' ? 'running' : ''} ${s.has_diagnosis ? 'crashed' : ''}" onclick="openScript('${s.id}')">
         <div class="sc-head"><div class="sc-name">${esc(s.name)}</div>${statusPill(s.status, s.detached)}</div>
-        <div class="sc-file">📄 ${esc(s.filename || '')}${s.args ? ' · ' + esc(s.args) : ''}</div>
-        <div class="sc-stats"><span>🏁 <b>${s.runs_count}</b> runs</span><span>✅ <b>${s.success_count}</b> succès</span>${s.has_qa ? '<span>💬 réponses mémorisées</span>' : ''}</div>
-        ${s.waiting ? '<div class="info-box info-warn" style="margin-bottom:.7rem">💬 Ce script attend ta réponse !</div>' : ''}
-        ${s.has_diagnosis && s.status !== 'running' ? '<div class="info-box info-err" style="margin-bottom:.7rem">❌ Dernier run : crash — diagnostic dispo</div>' : ''}
+        <div class="sc-tags">
+          <span class="tag">${s.kind === 'project' ? 'Projet' : 'Fichier'}</span>
+          ${s.runtime ? `<span class="tag tag-rt">${esc(RT_LABEL[s.runtime] || s.runtime)}</span>` : ''}
+        </div>
+        <div class="sc-file">${esc(s.entry || s.filename || '')}${s.args ? ' · ' + esc(s.args) : ''}</div>
+        <div class="sc-stats"><span><b>${s.runs_count}</b> runs</span><span><b>${s.success_count}</b> succes</span>${s.has_qa ? '<span>reponses memorisees</span>' : ''}</div>
+        ${s.waiting ? '<div class="info-box info-warn" style="margin-bottom:.7rem">Ce script attend votre reponse.</div>' : ''}
+        ${s.has_diagnosis && s.status !== 'running' ? '<div class="info-box info-err" style="margin-bottom:.7rem">Dernier run en echec — diagnostic disponible.</div>' : ''}
         <div class="sc-actions" onclick="event.stopPropagation()">
           ${s.status === 'running'
-            ? `<button onclick="stopScript('${s.id}')" class="btn-ghost">⏹ Stop</button>
-               <button onclick="restartScript('${s.id}')" class="btn-ghost">🔁 Restart</button>`
-            : `<button onclick="openLaunch('${s.id}')" class="btn-primary">▶ Lancer</button>`}
-          <button onclick="openScript('${s.id}')" class="btn-ghost">🖥️ Console</button>
-          <button onclick="deleteScript('${s.id}')" class="btn-danger" title="Supprimer">🗑️</button>
+            ? `<button onclick="stopScript('${s.id}')" class="btn-ghost">${icon('stop')} Stop</button>
+               <button onclick="restartScript('${s.id}')" class="btn-ghost">${icon('restart')} Restart</button>`
+            : `<button onclick="openLaunch('${s.id}')" class="btn-primary">${icon('play')} Lancer</button>`}
+          <button onclick="openScript('${s.id}')" class="btn-ghost">${icon('terminal')} Console</button>
+          <button onclick="deleteScript('${s.id}')" class="btn-danger" title="Supprimer">${icon('trash')}</button>
         </div>
       </div>`).join('');
     setHealth(true);
@@ -171,17 +220,18 @@ async function restartScript(id, answers) {
 }
 async function deleteScript(id) {
   const s = SCRIPTS.find(x => x.id === id);
-  if (!confirm(`Supprimer « ${s ? s.name : id} » ? Le script sera arrêté et ses fichiers effacés.`)) return;
-  try { await api(`/api/scripts/${id}`, { method: 'DELETE' }); toast('Script supprimé'); }
+  if (!confirm(`Supprimer « ${s ? s.name : id} » ? Le script sera arrete et ses fichiers effaces.`)) return;
+  try { await api(`/api/scripts/${id}`, { method: 'DELETE' }); toast('Supprime'); }
   catch (e) { toast(e.message, false); }
   if (VIEW === 'detail') showView('scripts'); else refresh();
 }
 
-/* ---------------- détail + console ---------------- */
+/* ---------------- detail + console ---------------- */
 async function openScript(id) {
   DETAIL_ID = id;
   CONSOLE_SINCE = 0; CONSOLE_PAUSE = false;
-  $('terminal').innerHTML = '<div class="t-empty">Connexion à la console…</div>';
+  EDITOR_PATH = null;
+  $('terminal').innerHTML = '<div class="t-empty">Connexion a la console...</div>';
   $('waitbar').classList.add('hidden');
   showView('detail');
   await loadDetailData();
@@ -196,25 +246,52 @@ async function loadDetailData() {
     $('page-title').textContent = s.name;
     $('d-name').textContent = s.name;
     $('d-status').innerHTML = statusPill(s.status, s.detached);
-    $('d-waiting').classList.toggle('hidden', !(s.status === 'running'));
-    $('d-meta').textContent = `📄 ${s.filename} · 🏁 ${s.runs_count} runs · ✅ ${s.success_count} succès` +
-      (s.started_at && s.status === 'running' ? ` · ▶ depuis ${fmtDate(s.started_at)}` : '') +
-      (s.pid ? ` · PID ${s.pid}` : '') + (s.detached ? ' · ⚠️ détaché (serveur redémarré)' : '');
+    $('d-waiting').classList.toggle('hidden', true);
+    $('d-meta').textContent = `${s.kind === 'project' ? 'Projet' : 'Fichier'} · ${s.entry || ''} · ${RT_LABEL[s.runtime] || '?'} · ${s.runs_count} runs · ${s.success_count} succes` +
+      (s.started_at && s.status === 'running' ? ` · depuis ${fmtDate(s.started_at)}` : '') +
+      (s.pid ? ` · PID ${s.pid}` : '') + (s.detached ? ' · DETACHE (serveur redemarre)' : '');
     $('d-actions').innerHTML = s.status === 'running'
-      ? `<button onclick="stopScript('${s.id}')" class="btn-ghost text-sm">⏹ Stop</button>
-         <button onclick="restartScript('${s.id}')" class="btn-ghost text-sm">🔁 Restart</button>`
-      : `<button onclick="openLaunch('${s.id}')" class="btn-primary text-sm">▶ Lancer intelligemment 🧠</button>
-         <button onclick="quickRun('${s.id}')" class="btn-ghost text-sm">▶ Direct</button>`;
-    // config
+      ? `<button onclick="stopScript('${s.id}')" class="btn-ghost text-sm">${icon('stop')} Stop</button>
+         <button onclick="restartScript('${s.id}')" class="btn-ghost text-sm">${icon('restart')} Restart</button>`
+      : `<button onclick="openLaunch('${s.id}')" class="btn-primary text-sm">${icon('play')} Lancer</button>
+         <button onclick="quickRun('${s.id}')" class="btn-ghost text-sm">Lancement direct</button>`;
     $('cfg-name').value = s.name || '';
     $('cfg-args').value = s.args || '';
     $('cfg-env').value = Object.entries(s.env || {}).map(([k, v]) => `${k}=${v}`).join('\n');
     $('cfg-req').value = s.requirements || '';
-    if (document.activeElement !== $('cfg-code')) $('cfg-code').value = s.code || '';
+    $('cfg-runtime').value = s.runtime_mode || 'auto';
+    $('cfg-custom').value = s.custom_cmd || '';
+    toggleCustomRow();
+    $('btn-npm').classList.toggle('hidden', !s.has_package_json && s.runtime !== 'node');
+    // entree (projets)
+    const er = $('cfg-entry-row');
+    if (s.kind === 'project' && s.tree && s.tree.entries) {
+      er.classList.remove('hidden');
+      $('cfg-entry').innerHTML = s.tree.entries.map(e =>
+        `<option value="${esc(e.path)}"${e.path === s.entry ? ' selected' : ''}>${esc(e.path)} (${RT_LABEL[e.runtime] || e.runtime})</option>`).join('');
+    } else er.classList.add('hidden');
+    renderTree(s);
+    if (!EDITOR_PATH) {
+      EDITOR_PATH = s.entry;
+      if (EDITOR_PATH) loadFile(EDITOR_PATH, true);
+    }
     $('term-dl').href = `/api/scripts/${s.id}/logs/download`;
     renderDiag(s);
     renderRuns(s);
   } catch (e) { console.error(e); }
+}
+function toggleCustomRow() {
+  $('cfg-custom-row').classList.toggle('hidden', $('cfg-runtime').value !== 'custom');
+}
+$('cfg-runtime') && $('cfg-runtime').addEventListener('change', toggleCustomRow);
+async function changeEntry() {
+  if (!DETAIL_ID) return;
+  try {
+    const d = await api(`/api/scripts/${DETAIL_ID}/entry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: $('cfg-entry').value }) });
+    toast('Point d\'entree : ' + d.entry);
+    EDITOR_PATH = d.entry;
+    loadDetailData();
+  } catch (e) { toast(e.message, false); loadDetailData(); }
 }
 function renderDiag(s) {
   const box = $('d-diag');
@@ -222,35 +299,37 @@ function renderDiag(s) {
   if (!dg || !dg.found) { box.innerHTML = ''; return; }
   let actionBtn = '';
   if (dg.action && dg.action.type === 'install')
-    actionBtn = `<button onclick="quickFix('${s.id}','${esc(dg.action.package)}')" class="btn-primary text-sm mt-2">${esc(dg.action.label)} puis relancer</button>`;
+    actionBtn = `<button data-pkg="${esc(dg.action.package)}" data-mgr="${esc(dg.action.manager || 'pip')}" onclick="quickFix(this)" class="btn-primary text-sm mt-2">${esc(dg.action.label)}</button>`;
   else if (dg.action && dg.action.type === 'edit')
-    actionBtn = `<button onclick="detailTab('code')" class="btn-primary text-sm mt-2">📝 Ouvrir l'éditeur</button>`;
-  box.innerHTML = `<div class="diag"><h3>🩺 Diagnostic : ${esc(dg.exception || 'erreur')}</h3>
+    actionBtn = `<button onclick="detailTab('code')" class="btn-primary text-sm mt-2">Ouvrir l'editeur</button>`;
+  box.innerHTML = `<div class="diag"><h3>Diagnostic : ${esc(dg.exception || 'erreur')}</h3>
     ${dg.message ? `<p><code>${esc(dg.message)}</code></p>` : ''}
     <p>${esc(dg.hint || '')}</p>
     ${dg.block ? `<pre>${esc(dg.block)}</pre>` : ''}
-    <div class="flex gap-2 flex-wrap">${actionBtn}<button onclick="openLaunch('${s.id}')" class="btn-ghost text-sm mt-2">🔁 Relancer</button></div></div>`;
+    <div class="flex gap-2 flex-wrap">${actionBtn}<button onclick="openLaunch('${s.id}')" class="btn-ghost text-sm mt-2">Relancer</button></div></div>`;
 }
-async function quickFix(id, pkg) {
-  toast(`Installation de ${pkg}…`);
+async function quickFix(btn) {
+  const pkg = btn.dataset.pkg, mgr = btn.dataset.mgr || 'pip';
+  toast(`Installation de ${pkg} (${mgr})...`);
   try {
-    const d = await api(`/api/scripts/${id}/fix-install`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ package: pkg }) });
+    const d = await api(`/api/scripts/${DETAIL_ID}/fix-install`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ package: pkg, manager: mgr }) });
     toast(d.message, d.ok);
-    if (d.ok) { pollConsole(true); openLaunch(id); }
+    if (d.ok) { pollConsole(true); openLaunch(DETAIL_ID); }
   } catch (e) { toast(e.message, false); }
 }
 function renderRuns(s) {
   let html = '';
   if (s.qa_history && s.qa_history.length) {
-    html += `<div class="label">💬 Dernières réponses mémorisées <span class="hint">(rejouées au redémarrage)</span></div>`;
+    html += `<div class="label">Dernieres reponses memorisees <span class="hint">(rejouees au redemarrage)</span></div>`;
     html += s.qa_history.slice(-8).map(q =>
-      `<div class="qa-item"><div class="q">Q: ${esc(q.prompt || '(sans question)')}</div><div class="a">❯ ${esc(q.answer)}${q.auto ? ' 🤖' : ''}</div></div>`).join('');
+      `<div class="qa-item"><div class="q">Q : ${esc(q.prompt || '(sans question)')}</div><div class="a">&gt; ${esc(q.answer)}${q.auto ? ' (auto)' : ''}</div></div>`).join('');
   }
-  html += `<div class="label mt-3">🏁 Historique d'exécution</div>`;
+  html += `<div class="label mt-3">Historique d'execution</div>`;
   html += (s.runs && s.runs.length) ? s.runs.map(r => {
-    const ico = r.reason === 'success' ? '✅' : r.reason === 'crash' ? '❌' : '⏹';
-    return `<div class="run-item"><span>${ico}</span><div class="flex-1"><div>${r.reason === 'success' ? 'Succès' : r.reason === 'crash' ? `Crash (code ${r.exit_code})` : 'Arrêté'} · ${fmtDur(r.duration_s)}${r.answers ? ` · ${r.answers} réponse(s)` : ''}</div><div class="t">${fmtDate(r.started_at)}</div></div></div>`;
-  }).join('') : '<div class="empty-note">Aucune exécution pour le moment.</div>';
+    const label = r.reason === 'success' ? 'Succes' : r.reason === 'crash' ? `Echec (code ${r.exit_code})` : 'Arrete';
+    const cls = r.reason === 'success' ? 'run-ok' : r.reason === 'crash' ? 'run-err' : 'run-stop';
+    return `<div class="run-item ${cls}"><div class="flex-1"><div>${label} · ${fmtDur(r.duration_s)}${r.answers ? ` · ${r.answers} reponse(s)` : ''}</div><div class="t">${fmtDate(r.started_at)}</div></div></div>`;
+  }).join('') : '<div class="empty-note">Aucune execution pour le moment.</div>';
   $('d-runs').innerHTML = html;
   $('d-qa').innerHTML = '';
 }
@@ -279,36 +358,85 @@ async function saveConfig() {
   try {
     const d = await api(`/api/scripts/${DETAIL_ID}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: $('cfg-name').value, args: $('cfg-args').value, env, requirements: $('cfg-req').value, code: $('cfg-code').value })
+      body: JSON.stringify({ name: $('cfg-name').value, args: $('cfg-args').value, env, requirements: $('cfg-req').value, runtime: $('cfg-runtime').value, custom_cmd: $('cfg-custom').value })
     });
-    toast('Enregistré 💾 (redémarre le script pour appliquer)');
+    toast('Enregistre (redemarrez le script pour appliquer)');
     if (d.analysis) showMiniAnalysis(d.analysis);
     loadDetailData();
   } catch (e) { toast(e.message, false); }
 }
 function showMiniAnalysis(a) {
   $('cfg-analysis').innerHTML = a.ok
-    ? `🧠 ${esc(a.summary)}${a.inputs.length ? `<br>💬 Questions : ${a.inputs.map(i => esc(i.label || ('Question ' + i.index))).join(' · ')}` : ''}`
-    : `⛔ ${esc(a.summary)}`;
+    ? `${esc(a.summary)}${a.inputs.length ? `<br>Questions : ${a.inputs.map(i => esc(i.label || ('Question ' + i.index))).join(' · ')}` : ''}`
+    : `${esc(a.summary)}`;
 }
 async function reanalyze() {
   if (!DETAIL_ID) return;
-  try { const d = await api(`/api/scripts/${DETAIL_ID}/analyze`); showMiniAnalysis(d.analysis); toast('Scan terminé 🧠'); }
+  try { const d = await api(`/api/scripts/${DETAIL_ID}/analyze`); showMiniAnalysis(d.analysis); toast('Analyse terminee'); }
   catch (e) { toast(e.message, false); }
 }
 async function installDeps() {
   if (!DETAIL_ID) return;
-  toast('Installation… (suivre la console)');
+  toast('Installation pip... (suivre la console)');
   try { const d = await api(`/api/scripts/${DETAIL_ID}/install-deps`, { method: 'POST' }); toast(d.message, d.ok); }
   catch (e) { toast(e.message, false); }
   pollConsole(true);
+}
+async function npmInstall() {
+  if (!DETAIL_ID) return;
+  toast('Installation npm... (suivre la console)');
+  try { const d = await api(`/api/scripts/${DETAIL_ID}/npm-install`, { method: 'POST' }); toast(d.message, d.ok); }
+  catch (e) { toast(e.message, false); }
+  pollConsole(true);
+}
+
+/* ----- arborescence + editeur ----- */
+function renderTree(s) {
+  const box = $('file-tree');
+  if (s.kind !== 'project' || !s.tree) { box.innerHTML = ''; return; }
+  const files = s.tree.files || [];
+  box.innerHTML = `<div class="tree-head">${files.length} fichier(s)${s.tree.truncated ? ' (tronque)' : ''}</div>` +
+    files.slice(0, 400).map(f => {
+      const pad = Math.min(f.depth, 6) * 14;
+      const isEntry = f.path === s.entry;
+      const runnable = f.runtime ? ' runnable' : '';
+      return `<div class="tree-row${runnable}${f.path === EDITOR_PATH ? ' active' : ''}" style="padding-left:${8 + pad}px" data-path="${esc(f.path)}" onclick="treeClick(this)" title="${esc(f.path)} (${fmtSize(f.size)})">
+        <span class="tree-ico">${icon(f.runtime ? 'file' : 'info', 12)}</span>
+        <span class="tree-name">${esc(f.path.split('/').pop())}</span>
+        ${isEntry ? '<span class="tree-entry">entree</span>' : ''}</div>`;
+    }).join('');
+}
+function treeClick(el) { loadFile(el.dataset.path); }
+async function loadFile(path, silent) {
+  if (!DETAIL_ID) return;
+  EDITOR_PATH = path;
+  document.querySelectorAll('.tree-row').forEach(r => r.classList.toggle('active', r.dataset.path === path));
+  $('editor-path').textContent = path;
+  $('editor-msg').textContent = '';
+  try {
+    const d = await api(`/api/scripts/${DETAIL_ID}/file?path=${encodeURIComponent(path)}`);
+    if (document.activeElement !== $('cfg-code')) $('cfg-code').value = d.content;
+  } catch (e) {
+    if (!silent) toast(e.message, false);
+    $('cfg-code').value = '';
+    $('editor-msg').textContent = e.message;
+  }
+}
+async function saveFile() {
+  if (!DETAIL_ID || !EDITOR_PATH) return;
+  try {
+    const d = await api(`/api/scripts/${DETAIL_ID}/file`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: EDITOR_PATH, content: $('cfg-code').value }) });
+    if (d.warning) { $('editor-msg').textContent = d.warning; toast(d.warning, true); }
+    else { $('editor-msg').textContent = 'Enregistre.'; toast('Fichier enregistre'); }
+    if (d.analysis) showMiniAnalysis(d.analysis);
+  } catch (e) { toast(e.message, false); }
 }
 
 /* ----- console live ----- */
 function termLineHTML(l) {
   const cls = l.type === 'in' ? 't-in' : l.type === 'sys' ? 't-sys' : '';
   let text = l.text ?? '';
-  if (l.level === 'secret') text = '••••••••';
+  if (l.level === 'secret') text = '********';
   return `<div class="tline lvl-${esc(l.level || 'info')} ${cls}" data-lvl="${l.type === 'in' ? 'in' : l.type === 'sys' ? 'sys' : esc(l.level || 'info')}" data-txt="${esc((l.text || '').toLowerCase())}"><span class="ttime">${fmtTime(l.t)}</span><span class="ttext">${esc(text) || ' '}</span></div>`;
 }
 async function pollConsole(force) {
@@ -327,24 +455,24 @@ async function pollConsole(force) {
       if ((nearBottom && CONSOLE_FOLLOW) || force) term.scrollTop = term.scrollHeight;
       filterConsole();
     } else if (CONSOLE_SINCE === 0 && !term.children.length) {
-      term.innerHTML = '<div class="t-empty">Aucune sortie pour le moment.<br>Lance le script pour voir sa console ici. 🚀</div>';
+      term.innerHTML = '<div class="t-empty">Aucune sortie pour le moment.<br>Lancez le script pour voir sa console ici.</div>';
     }
-    // barre d'attente
     const wb = $('waitbar');
     if (d.waiting && d.status === 'running') {
       wb.classList.remove('hidden');
-      $('wait-text').textContent = d.prompt || 'Le script attend une réponse…';
+      $('wait-text').textContent = d.prompt || 'Le script attend une reponse...';
       $('wait-input').type = SENSITIVE_RE.test(d.prompt || '') ? 'password' : 'text';
       $('wait-chips').innerHTML = (d.options || []).map(o =>
-        `<button class="chip" onclick="chipSend('${esc(o).replace(/'/g, "\\'")}')">${esc(o)}</button>`).join('');
+        `<button class="chip" data-v="${esc(o)}" onclick="chipSend(this)">${esc(o)}</button>`).join('');
       $('d-waiting').classList.remove('hidden');
-      if (!wb._ping) { wb._ping = true; setTimeout(() => wb._ping = false, 5000); }
     } else {
       wb.classList.add('hidden');
       $('d-waiting').classList.add('hidden');
     }
-    // statut changé ? refresh header
-    if (DETAIL_DATA && DETAIL_DATA.status !== d.status) loadDetailData();
+    if (DETAIL_DATA && DETAIL_DATA.status !== d.status) {
+      loadDetailData();
+      if (d.status !== 'running') setTimeout(() => { if (VIEW === 'detail') loadDetailData(); }, 2000);
+    }
     else if (DETAIL_DATA && d.diagnosis && !DETAIL_DATA.diagnosis) loadDetailData();
   } catch (e) { console.error(e); }
 }
@@ -352,9 +480,9 @@ function filterConsole() {
   const q = ($('term-search').value || '').toLowerCase();
   const lvl = $('term-level').value;
   for (const el of $('terminal').children) {
-    if (!el.dataset) continue;
+    if (!el.dataset || el.dataset.txt === undefined) continue;
     const okQ = !q || (el.dataset.txt || '').includes(q);
-    const okL = !lvl || el.dataset.lvl === lvl || (lvl === 'error' && el.dataset.lvl === 'error');
+    const okL = !lvl || el.dataset.lvl === lvl;
     el.style.display = okQ && okL ? '' : 'none';
     el.classList.toggle('mark', !!q && okQ && (el.dataset.txt || '').includes(q));
   }
@@ -366,7 +494,7 @@ function toggleFollow() {
 }
 function togglePause() {
   CONSOLE_PAUSE = !CONSOLE_PAUSE;
-  $('term-pause').textContent = CONSOLE_PAUSE ? '▶' : '⏸';
+  $('term-pause').textContent = CONSOLE_PAUSE ? 'Reprendre' : 'Pause';
   $('term-pause').classList.toggle('on', CONSOLE_PAUSE);
 }
 function clearConsoleView() { $('terminal').innerHTML = ''; }
@@ -377,7 +505,7 @@ async function sendWaitInput() {
   await sendInput(text);
   setTimeout(() => pollConsole(true), 400);
 }
-function chipSend(val) { sendInput(val).then(() => setTimeout(() => pollConsole(true), 400)); }
+function chipSend(btn) { sendInput(btn.dataset.v).then(() => setTimeout(() => pollConsole(true), 400)); }
 async function sendInput(text) {
   if (!DETAIL_ID) return;
   try { await api(`/api/scripts/${DETAIL_ID}/input`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }); }
@@ -386,64 +514,129 @@ async function sendInput(text) {
 
 /* ---------------- lancement intelligent ---------------- */
 async function openLaunch(id) {
-  LAUNCH = { id, analysis: null, qa: [] };
-  $('launch-body').innerHTML = '<div class="empty-note">🧠 Scan du script en cours…</div>';
+  LAUNCH = { id, detail: null, analysis: null, qa: [] };
+  $('launch-body').innerHTML = '<div class="empty-note">Analyse en cours...</div>';
+  $('launch-sub').textContent = '';
   $('modal-launch').classList.remove('hidden');
   try {
     const [a, d] = await Promise.all([
       api(`/api/scripts/${id}/analyze`),
       api(`/api/scripts/${id}`),
     ]);
+    LAUNCH.detail = d.script;
     LAUNCH.analysis = a.analysis;
     LAUNCH.qa = d.script.qa_history || [];
-    renderLaunch(d.script.name);
+    LAUNCH.entry = d.script.entry;
+    LAUNCH.runtime = d.script.runtime_mode || 'auto';
+    LAUNCH.custom = d.script.custom_cmd || '';
+    renderLaunch();
   } catch (e) {
-    $('launch-body').innerHTML = `<div class="info-box info-err">❌ ${esc(e.message)}</div>`;
+    $('launch-body').innerHTML = `<div class="info-box info-err">${esc(e.message)}</div>`;
   }
 }
-function renderLaunch(name) {
-  const a = LAUNCH.analysis;
-  $('launch-sub').innerHTML = `Script « <strong>${esc(name)}</strong> » · ${esc(a.summary || '')}`;
+async function relaunchAnalyze() {
+  try {
+    const a = await api(`/api/scripts/${LAUNCH.id}/analyze`);
+    LAUNCH.analysis = a.analysis;
+    const d = await api(`/api/scripts/${LAUNCH.id}`);
+    LAUNCH.detail = d.script;
+    LAUNCH.qa = d.script.qa_history || [];
+    renderLaunch(true);
+  } catch (e) { toast(e.message, false); }
+}
+function renderLaunch(keepAnswers) {
+  const s = LAUNCH.detail, a = LAUNCH.analysis;
+  const prev = {};
+  if (keepAnswers) document.querySelectorAll('[id^="q-"]').forEach(el => prev[el.id] = el.value);
+  $('launch-sub').innerHTML = `<strong>${esc(s.name)}</strong> · ${esc(a.summary || '')}`;
   let html = '';
   if (!a.ok) {
-    html += `<div class="info-box info-err">⛔ <strong>Erreur de syntaxe ligne ${a.syntax_error.line}</strong> : ${esc(a.syntax_error.msg)}<br><code>${esc(a.syntax_error.text)}</code><br>Corrige-la dans l'onglet 📝 Code avant de lancer.</div>`;
-    html += `<button onclick="closeModal('modal-launch');openScript('${LAUNCH.id}');detailTab('code')" class="btn-primary w-full">📝 Ouvrir l'éditeur</button>`;
+    html += `<div class="info-box info-err"><strong>Erreur de syntaxe ligne ${a.syntax_error.line}</strong> : ${esc(a.syntax_error.msg)}<br><code>${esc(a.syntax_error.text)}</code><br>Corrigez-la dans l'onglet Fichiers avant de lancer.</div>`;
+    html += `<button onclick="closeModal('modal-launch');openScript('${LAUNCH.id}');detailTab('code')" class="btn-primary w-full">Ouvrir l'editeur</button>`;
     $('launch-body').innerHTML = html;
     return;
   }
-  // risques
+  // Etape 1 : entree + runtime (projets)
+  html += `<div class="step"><div class="step-title">1. Point d'entree et runtime</div><div class="grid md:grid-cols-2 gap-3">`;
+  if (s.kind === 'project' && s.tree && s.tree.entries) {
+    html += `<div><label class="label">Fichier a executer</label><select id="l-entry" class="input" onchange="launchEntry()">` +
+      s.tree.entries.map(e => `<option value="${esc(e.path)}"${e.path === LAUNCH.entry ? ' selected' : ''}>${esc(e.path)} (${RT_LABEL[e.runtime] || e.runtime})</option>`).join('') + `</select></div>`;
+  } else {
+    html += `<div><label class="label">Fichier</label><div class="input input-static font-mono">${esc(s.entry || '')}</div></div>`;
+  }
+  html += `<div><label class="label">Runtime</label><select id="l-runtime" class="input" onchange="launchRuntime()">
+    <option value="auto"${LAUNCH.runtime === 'auto' ? ' selected' : ''}>Auto — ${esc(RT_LABEL[s.runtime] || '?')} detecte</option>
+    <option value="python"${LAUNCH.runtime === 'python' ? ' selected' : ''}>Python</option>
+    <option value="node"${LAUNCH.runtime === 'node' ? ' selected' : ''}>Node.js</option>
+    <option value="bash"${LAUNCH.runtime === 'bash' ? ' selected' : ''}>Shell</option>
+    <option value="custom"${LAUNCH.runtime === 'custom' ? ' selected' : ''}>Personnalise</option></select></div></div>
+    <div id="l-custom-row" class="${LAUNCH.runtime === 'custom' ? '' : 'hidden'} mt-3"><label class="label">Commande ({file} = script)</label>
+    <input id="l-custom" class="input font-mono" value="${esc(LAUNCH.custom)}" placeholder="php -f"></div></div>`;
+  // Etape 2 : dependances
+  const hasReq = s.has_requirements, hasPkg = s.has_package_json;
+  if ((a.suggested_requirements && a.suggested_requirements.length) || hasReq || hasPkg) {
+    html += `<div class="step"><div class="step-title">2. Dependances</div>`;
+    if (a.suggested_requirements && a.suggested_requirements.length) {
+      const mgr = a.eco === 'npm' ? 'npm' : 'pip';
+      html += `<div class="info-box info-info">Detectees : <strong>${a.suggested_requirements.map(esc).join(', ')}</strong> (${mgr})<br>
+        ${mgr === 'pip' ? '<button class="link" onclick="addReqs()">Ajouter au requirements.txt</button>' : `<button class="link" onclick="launchNpmInstall()">Installer via npm</button>`}</div>`;
+    }
+    html += `<div class="flex gap-2 flex-wrap">`;
+    if (hasReq) html += `<button onclick="launchPipInstall()" class="btn-ghost text-sm">Installer requirements.txt (pip)</button>`;
+    if (hasPkg) html += `<button onclick="launchNpmInstall()" class="btn-ghost text-sm">Installer package.json (npm)</button>`;
+    html += `</div></div>`;
+  }
   for (const r of (a.risks || []))
     html += `<div class="info-box ${r.level === 'warn' ? 'info-warn' : 'info-info'}">${esc(r.text)}</div>`;
-  // librairies
-  if (a.suggested_requirements && a.suggested_requirements.length) {
-    html += `<div class="info-box info-info">📦 Librairies détectées : <strong>${a.suggested_requirements.map(esc).join(', ')}</strong><br><button class="link" onclick="addReqs()">＋ Ajouter au requirements.txt</button></div>`;
-  }
-  // questions
+  // Etape 3 : questions
+  html += `<div class="step"><div class="step-title">3. Reponses</div>`;
   if (a.inputs && a.inputs.length) {
-    html += `<div class="label mb-2">💬 Ce script va te poser <strong>${a.inputs.length} question(s)</strong> — remplis-les ici, elles seront envoyées automatiquement :</div>`;
+    html += `<div class="label mb-2">Ce script va poser <strong>${a.inputs.length} question(s)</strong> — remplissez-les ici, elles seront envoyees automatiquement :</div>`;
     if (LAUNCH.qa.length)
-      html += `<button class="btn-ghost text-sm mb-3" onclick="fillPrevious()">🕘 Reprendre mes dernières réponses (${LAUNCH.qa.length})</button>`;
+      html += `<button class="btn-ghost text-sm mb-3" onclick="fillPrevious()">Reprendre mes dernieres reponses (${LAUNCH.qa.length})</button>`;
     html += a.inputs.map((q, i) => `
       <div class="q-card">
         <div class="q-head"><span class="q-num">${q.index}</span><span class="q-label">${esc(q.label || q.prompt || ('Question ' + q.index))}</span></div>
         ${q.context && q.context.length && !(q.prompt && q.context.includes(q.prompt)) ? `<div class="q-menu">${esc(q.context.join('\n'))}</div>` : ''}
-        ${q.options && q.options.length ? `<div class="chips mb-2">${q.options.map(o => `<button class="chip" onclick="fillQ(${i},'${esc(o).replace(/'/g, "\\'")}')">${esc(o)}</button>`).join('')}</div>` : ''}
-        <input id="q-${i}" class="input font-mono" ${q.sensitive ? 'type="password"' : ''} placeholder="${q.sensitive ? '🔒 réponse masquée' : 'Ta réponse…'}" autocomplete="off">
+        ${q.options && q.options.length ? `<div class="chips mb-2">${q.options.map(o => `<button class="chip" data-i="${i}" data-v="${esc(o)}" onclick="fillQ(this)">${esc(o)}</button>`).join('')}</div>` : ''}
+        <input id="q-${i}" class="input font-mono" ${q.sensitive ? 'type="password"' : ''} placeholder="${q.sensitive ? 'Reponse masquee' : 'Votre reponse...'}" autocomplete="off" value="${esc(prev['q-' + i] || '')}">
       </div>`).join('');
   } else {
-    html += `<div class="info-box info-ok">🚀 Aucune question détectée — le script démarrera directement. S'il demande quelque chose en cours de route, tu pourras répondre dans la console.</div>`;
+    html += `<div class="info-box info-ok">Aucune question detectee — demarrage direct. En cas de question imprevue, repondez dans la console.</div>`;
   }
-  html += `<div class="flex gap-2 mt-4 flex-col sm:flex-row">
-    <button onclick="doLaunch(true)" class="btn-primary flex-1">▶ Démarrer${a.inputs.length ? ' avec ces réponses' : ''}</button>
-    ${a.inputs.length ? `<button onclick="doLaunch(false)" class="btn-ghost">Répondre en direct dans la console →</button>` : ''}
+  html += `</div>`;
+  html += `<div class="flex gap-2 mt-2 flex-col sm:flex-row">
+    <button onclick="doLaunch(true)" class="btn-primary flex-1">Demarrer${a.inputs.length ? ' avec ces reponses' : ''}</button>
+    ${a.inputs.length ? `<button onclick="doLaunch(false)" class="btn-ghost">Repondre en direct dans la console</button>` : ''}
   </div>`;
   $('launch-body').innerHTML = html;
 }
-function fillQ(i, val) { $('q-' + i).value = val; }
+async function launchEntry() {
+  LAUNCH.entry = $('l-entry').value;
+  try {
+    await api(`/api/scripts/${LAUNCH.id}/entry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: LAUNCH.entry }) });
+    relaunchAnalyze();
+  } catch (e) { toast(e.message, false); }
+}
+function launchRuntime() {
+  LAUNCH.runtime = $('l-runtime').value;
+  $('l-custom-row').classList.toggle('hidden', LAUNCH.runtime !== 'custom');
+}
+async function launchPipInstall() {
+  toast('Installation pip...');
+  try { const d = await api(`/api/scripts/${LAUNCH.id}/install-deps`, { method: 'POST' }); toast(d.message, d.ok); }
+  catch (e) { toast(e.message, false); }
+}
+async function launchNpmInstall() {
+  toast('Installation npm...');
+  try { const d = await api(`/api/scripts/${LAUNCH.id}/npm-install`, { method: 'POST' }); toast(d.message, d.ok); }
+  catch (e) { toast(e.message, false); }
+}
+function fillQ(btn) { $('q-' + btn.dataset.i).value = btn.dataset.v; }
 function fillPrevious() {
   const n = LAUNCH.analysis.inputs.length;
   LAUNCH.qa.slice(0, n).forEach((q, i) => { const el = $('q-' + i); if (el) el.value = q.answer || ''; });
-  toast('Réponses précédentes restaurées 🕘');
+  toast('Reponses precedentes restaurees');
 }
 async function addReqs() {
   const pkgs = LAUNCH.analysis.suggested_requirements;
@@ -454,48 +647,87 @@ async function addReqs() {
       if (!req.toLowerCase().includes(p.toLowerCase())) req += (req && !req.endsWith('\n') ? '\n' : '') + p + '\n';
     }
     await api(`/api/scripts/${LAUNCH.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requirements: req }) });
-    toast('requirements.txt mis à jour 📦 — pense à installer');
+    toast('requirements.txt mis a jour — pensez a installer');
+    relaunchAnalyze();
   } catch (e) { toast(e.message, false); }
 }
 async function doLaunch(withAnswers) {
   const a = LAUNCH.analysis;
   let answers = [];
   if (withAnswers && a.inputs.length) {
-    answers = a.inputs.map((_, i) => ($(('q-' + i)) || {}).value ?? '');
+    answers = a.inputs.map((_, i) => ($('q-' + i) || {}).value || '');
     if (answers.every(x => !x)) {
-      if (!confirm('Aucune réponse remplie. Démarrer quand même (tu répondras en direct) ?')) return;
+      if (!confirm('Aucune reponse remplie. Demarrer quand meme (reponses en direct) ?')) return;
       answers = [];
     }
   }
+  const payload = { answers, runtime: LAUNCH.runtime };
+  if (LAUNCH.runtime === 'custom') payload.custom_cmd = ($('l-custom') || {}).value || LAUNCH.custom;
   closeModal('modal-launch');
-  toast('Démarrage…');
+  toast('Demarrage...');
   try {
-    const d = await api(`/api/scripts/${LAUNCH.id}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers }) });
+    const d = await api(`/api/scripts/${LAUNCH.id}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     toast(d.message, d.ok);
   } catch (e) { toast(e.message, false); }
   openScript(LAUNCH.id);
 }
 
 /* ---------------- nouveau script ---------------- */
-function openNewScript() { $('modal-new').classList.remove('hidden'); }
-function newTab(t) {
-  $('npage-upload').classList.toggle('hidden', t !== 'upload');
-  $('npage-create').classList.toggle('hidden', t !== 'create');
-  $('ntab-upload').classList.toggle('active', t === 'upload');
-  $('ntab-create').classList.toggle('active', t === 'create');
+function openNewScript() {
+  $('modal-new').classList.remove('hidden');
+  loadArchiveSupport();
 }
-function bindDropzone() {
-  const dz = $('dropzone'), fi = $('file-input');
+function newTab(t) {
+  for (const x of ['upload', 'archive', 'create']) {
+    $('npage-' + x).classList.toggle('hidden', x !== t);
+    $('ntab-' + x).classList.toggle('active', x === t);
+  }
+}
+async function loadArchiveSupport() {
+  try {
+    const d = await api('/api/runtimes');
+    const ar = d.archives || {};
+    const parts = ['.zip OK', '.tar.gz OK'];
+    parts.push(ar['rar'] ? '.rar OK' : '.rar indisponible sur ce serveur');
+    parts.push(ar['7z'] ? '.7z OK' : '.7z indisponible sur ce serveur');
+    $('arch-support').textContent = 'Formats : ' + parts.join(' · ');
+  } catch (e) { /* silencieux */ }
+}
+function bindDropzone(dzId, fiId, dzFileId, acceptFn, nameInputId) {
+  const dz = $(dzId), fi = $(fiId);
   dz.onclick = () => fi.click();
-  fi.onchange = () => showDzFile(fi.files[0]);
+  fi.onchange = () => { if (fi.files[0]) { acceptFn(fi.files[0], fi); } };
   ['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
   dz.addEventListener('drop', e => {
     const f = e.dataTransfer.files[0];
-    if (f && f.name.endsWith('.py')) { const dt = new DataTransfer(); dt.items.add(f); fi.files = dt.files; showDzFile(f); }
-    else toast('Seuls les fichiers .py sont acceptés', false);
+    if (f) acceptFn(f, fi);
   });
-  // global
+}
+function showDzFile(boxId, f, nameInputId, stripExt) {
+  $(boxId).classList.remove('hidden');
+  $(boxId).textContent = `${f.name} (${(f.size / 1024).toFixed(1)} Ko)`;
+  const ni = nameInputId && $(nameInputId);
+  if (ni && !ni.value) {
+    let base = f.name.replace(/\.(tar\.gz|tgz|zip|rar|7z|tar|py|js|mjs|cjs|sh|bash)$/i, '');
+    ni.value = base.replace(/[_-]+/g, ' ');
+  }
+}
+function bindAll() {
+  const codeExts = ['.py', '.js', '.mjs', '.cjs', '.sh', '.bash'];
+  const archExts = ['.zip', '.tar', '.tgz', '.gz', '.rar', '.7z'];
+  bindDropzone('dropzone', 'file-input', 'dz-file', (f, fi) => {
+    const ok = codeExts.some(e => f.name.toLowerCase().endsWith(e));
+    if (!ok) { toast('Fichier refuse — utilisez .py, .js, .sh ou une archive', false); return; }
+    const dt = new DataTransfer(); dt.items.add(f); fi.files = dt.files;
+    showDzFile('dz-file', f, 'up-name');
+  });
+  bindDropzone('dropzone-arch', 'arch-input', 'dz-arch-file', (f, fi) => {
+    const ok = archExts.some(e => f.name.toLowerCase().endsWith(e));
+    if (!ok) { toast('Archive refusee — .zip, .tar.gz, .rar, .7z uniquement', false); return; }
+    const dt = new DataTransfer(); dt.items.add(f); fi.files = dt.files;
+    showDzFile('dz-arch-file', f, 'arch-name');
+  });
   window.addEventListener('dragover', e => e.preventDefault());
   window.addEventListener('drop', e => e.preventDefault());
   let depth = 0;
@@ -504,23 +736,25 @@ function bindDropzone() {
   window.addEventListener('drop', e => {
     depth = 0; $('drop-overlay').classList.add('hidden');
     const f = e.dataTransfer.files[0];
-    if (f && f.name.endsWith('.py')) {
-      openNewScript(); newTab('upload');
-      const dt = new DataTransfer(); dt.items.add(f); fi.files = dt.files; showDzFile(f);
-    }
+    if (!f) return;
+    const low = f.name.toLowerCase();
+    openNewScript();
+    if (archExts.some(ex => low.endsWith(ex))) {
+      newTab('archive');
+      const dt = new DataTransfer(); dt.items.add(f); $('arch-input').files = dt.files;
+      showDzFile('dz-arch-file', f, 'arch-name');
+    } else if (codeExts.some(ex => low.endsWith(ex))) {
+      newTab('upload');
+      const dt = new DataTransfer(); dt.items.add(f); $('file-input').files = dt.files;
+      showDzFile('dz-file', f, 'up-name');
+    } else toast('Format non pris en charge', false);
   });
-}
-function showDzFile(f) {
-  if (!f) return;
-  $('dz-file').classList.remove('hidden');
-  $('dz-file').textContent = `🐍 ${f.name} (${(f.size / 1024).toFixed(1)} Ko)`;
-  if (!$('up-name').value) $('up-name').value = f.name.replace(/\.py$/, '').replace(/[_-]+/g, ' ');
 }
 async function doUpload() {
   const fi = $('file-input');
-  if (!fi.files.length) { $('up-msg').innerHTML = '<span class="text-red-300">❌ Choisis un fichier .py d\'abord.</span>'; return; }
+  if (!fi.files.length) { $('up-msg').innerHTML = '<span class="text-red-300">Choisissez un fichier d\'abord.</span>'; return; }
   const btn = $('up-btn');
-  btn.disabled = true; btn.textContent = 'Upload & scan…';
+  btn.disabled = true; btn.textContent = 'Upload et analyse...';
   try {
     const fd = new FormData();
     fd.append('file', fi.files[0]);
@@ -531,15 +765,33 @@ async function doUpload() {
     if ($('up-install').checked) fd.append('install_deps', 'on');
     const r = await fetch('/api/scripts/upload', { method: 'POST', body: fd });
     const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Échec');
+    if (!d.ok) throw new Error(d.error || 'Echec');
     closeModal('modal-new');
     fi.value = ''; $('dz-file').classList.add('hidden');
-    LAUNCH = { id: d.id, analysis: d.analysis, qa: [] };
-    $('modal-launch').classList.remove('hidden');
-    renderLaunch(d.name);
+    openLaunch(d.id);
     refresh();
-  } catch (e) { $('up-msg').innerHTML = `<span class="text-red-300">❌ ${esc(e.message)}</span>`; }
-  finally { btn.disabled = false; btn.textContent = 'Uploader & analyser 🧠'; }
+  } catch (e) { $('up-msg').innerHTML = `<span class="text-red-300">${esc(e.message)}</span>`; }
+  finally { btn.disabled = false; btn.textContent = 'Uploader et analyser'; }
+}
+async function doUploadArchive() {
+  const fi = $('arch-input');
+  if (!fi.files.length) { $('arch-msg').innerHTML = '<span class="text-red-300">Choisissez une archive d\'abord.</span>'; return; }
+  const btn = $('arch-btn');
+  btn.disabled = true; btn.textContent = 'Upload et extraction...';
+  try {
+    const fd = new FormData();
+    fd.append('file', fi.files[0]);
+    fd.append('name', $('arch-name').value);
+    const r = await fetch('/api/scripts/upload-archive', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Echec');
+    closeModal('modal-new');
+    fi.value = ''; $('dz-arch-file').classList.add('hidden');
+    toast(d.message || 'Projet importe');
+    openLaunch(d.id);
+    refresh();
+  } catch (e) { $('arch-msg').innerHTML = `<span class="text-red-300">${esc(e.message)}</span>`; }
+  finally { btn.disabled = false; btn.textContent = 'Uploader et analyser le projet'; }
 }
 function bindTpl() {
   document.querySelectorAll('#tpl-grid .tpl').forEach(b => b.onclick = () => {
@@ -554,9 +806,7 @@ async function doCreate() {
     const d = await api('/api/scripts/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, template: NEW_TPL }) });
     closeModal('modal-new');
     $('cr-name').value = '';
-    LAUNCH = { id: d.id, analysis: d.analysis, qa: [] };
-    $('modal-launch').classList.remove('hidden');
-    renderLaunch(name);
+    openLaunch(d.id);
     refresh();
   } catch (e) { toast(e.message, false); }
 }
@@ -581,7 +831,7 @@ async function loadWhCfg() {
 async function loadWhLogs() {
   try {
     const d = await api('/api/webhooks/logs?limit=100');
-    WH_LOGS = d.logs; WH_STATS = d.stats;
+    WH_LOGS = d.logs;
     $('wh-total').textContent = d.stats.total ?? 0;
     $('wh-24h').textContent = d.stats.last_24h ?? 0;
     $('wh-last').textContent = d.stats.last_call ? fmtDate(d.stats.last_call.time) : 'jamais';
@@ -602,26 +852,26 @@ function renderWhLogs() {
   $('wh-empty').classList.toggle('hidden', list.length > 0);
   $('wh-list').innerHTML = list.map(e => {
     const trig = e.triggered_script
-      ? (e.triggered_script.error ? `<div class="text-red-300 text-xs mt-1">⚡ ${esc(e.triggered_script.error)}</div>`
-        : `<div class="text-amber-300 text-xs mt-1">⚡ « ${esc(e.triggered_script.name)} » → ${esc(e.triggered_script.action)} ${e.triggered_script.ok ? '✔' : '❌'}</div>`)
+      ? (e.triggered_script.error ? `<div class="text-red-300 text-xs mt-1">Declenchement : ${esc(e.triggered_script.error)}</div>`
+        : `<div class="text-amber-300 text-xs mt-1">Declenchement : « ${esc(e.triggered_script.name)} » — ${esc(e.triggered_script.action)} ${e.triggered_script.ok ? 'OK' : 'Echec'}</div>`)
       : '';
-    const query = e.query && Object.keys(e.query).length ? `<div class="text-xs text-slate-400 mt-1">🔗 ${esc(JSON.stringify(e.query))}</div>` : '';
+    const query = e.query && Object.keys(e.query).length ? `<div class="text-xs text-slate-400 mt-1">Query : ${esc(JSON.stringify(e.query))}</div>` : '';
     const body = e.body_is_json ? JSON.stringify(e.body, null, 2) : String(e.body || '');
     return `
     <div class="card wh-card">
       <div class="wh-head">
         <span class="pill ${e.method === 'POST' ? 'pill-running' : 'pill-stopped'}">${esc(e.method)}</span>
-        <span class="wh-time">🕒 ${fmtDate(e.time)}</span>
-        <span class="text-xs text-slate-400">🌐 ${esc(e.ip)}</span>
+        <span class="wh-time">${fmtDate(e.time)}</span>
+        <span class="text-xs text-slate-400">${esc(e.ip)}</span>
         <span class="text-xs text-slate-500">${e.body_size} octets · ${e.duration_ms ?? '?'} ms</span>
-        <button class="mini-btn ml-auto" onclick="this.closest('.wh-card').querySelector('.wh-detail').classList.toggle('hidden')">🔍 Détails</button>
+        <button class="mini-btn ml-auto" onclick="this.closest('.wh-card').querySelector('.wh-detail').classList.toggle('hidden')">Details</button>
       </div>${query}${trig}
       <div class="wh-detail hidden">
         <div class="label mt-2">Contenu ${e.body_is_json ? '(JSON)' : '(texte)'}</div>
         <pre class="wh-pre" style="color:#7dd3fc">${esc(body.slice(0, 4000)) || '(vide)'}</pre>
         <div class="label mt-2">Headers</div>
         <pre class="wh-pre" style="color:#94a3b8;max-height:140px">${esc(JSON.stringify(e.headers || {}, null, 2))}</pre>
-        <div class="text-xs text-slate-500 mt-1">UA: ${esc(e.user_agent || '–')} · CT: ${esc(e.content_type || '–')} · #${esc(e.id)}</div>
+        <div class="text-xs text-slate-500 mt-1">UA : ${esc(e.user_agent || '–')} · CT : ${esc(e.content_type || '–')} · #${esc(e.id)}</div>
       </div>
     </div>`;
   }).join('');
@@ -632,22 +882,22 @@ async function saveWebhookCfg() {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ linked_script_id: $('wh-linked').value || null, auto_run: $('wh-autorun').checked, restart_if_running: $('wh-restart').checked })
     });
-    toast('Config webhook enregistrée');
+    toast('Configuration webhook enregistree');
   } catch (e) { toast(e.message, false); }
 }
 function copyWebhook() {
-  navigator.clipboard.writeText($('wh-url').textContent.trim()).then(() => toast('URL copiée 📋')).catch(() => toast('Copie impossible', false));
+  navigator.clipboard.writeText($('wh-url').textContent.trim()).then(() => toast('URL copiee')).catch(() => toast('Copie impossible', false));
 }
 async function regenWebhook() {
-  if (!confirm('Nouvelle URL ? L\'ancienne sera immédiatement invalidée.')) return;
-  try { const d = await api('/api/webhooks/regenerate', { method: 'POST' }); $('wh-url').textContent = d.url; toast('Nouvelle URL générée 🔄'); }
+  if (!confirm('Generer une nouvelle URL ? L\'ancienne sera immediatement invalidee.')) return;
+  try { const d = await api('/api/webhooks/regenerate', { method: 'POST' }); $('wh-url').textContent = d.url; toast('Nouvelle URL generee'); }
   catch (e) { toast(e.message, false); }
 }
 async function testWebhook() {
-  toast('Envoi d\'un appel de test…');
+  toast('Envoi d\'un appel de test...');
   try {
     const d = await api('/api/webhooks/test', { method: 'POST', allowFail: true });
-    if (d.ok) { toast('Appel de test reçu ✔'); loadWhLogs(); } else toast(d.error || 'Échec', false);
+    if (d.ok) { toast('Appel de test recu'); loadWhLogs(); } else toast(d.error || 'Echec', false);
   } catch (e) { toast(e.message, false); }
 }
 async function clearWhLogs() {
@@ -655,15 +905,15 @@ async function clearWhLogs() {
   try { await api('/api/webhooks/logs', { method: 'DELETE' }); loadWhLogs(); } catch (e) { toast(e.message, false); }
 }
 
-/* ---------------- paramètres ---------------- */
+/* ---------------- parametres ---------------- */
 function openSettings() { $('modal-settings').classList.remove('hidden'); }
 async function changeCode() {
   const msg = $('set-msg');
   try {
     await api('/api/change-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: $('set-current').value, new: $('set-new').value }) });
-    msg.innerHTML = '<span class="text-emerald-300">✅ Code mis à jour</span>';
+    msg.innerHTML = '<span class="text-emerald-300">Code mis a jour.</span>';
     setTimeout(() => closeModal('modal-settings'), 1200);
-  } catch (e) { msg.innerHTML = `<span class="text-red-300">❌ ${esc(e.message)}</span>`; }
+  } catch (e) { msg.innerHTML = `<span class="text-red-300">${esc(e.message)}</span>`; }
 }
 
 /* ---------------- refresh global ---------------- */
@@ -676,13 +926,13 @@ function refresh() {
 
 /* ---------------- init ---------------- */
 document.addEventListener('DOMContentLoaded', () => {
-  bindDropzone(); bindTpl();
+  bindAll(); bindTpl();
   $('wait-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendWaitInput(); });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') ['modal-new', 'modal-launch', 'modal-settings'].forEach(closeModal);
   });
   showView('overview');
-  setInterval(() => { // boucle douce selon la vue
+  setInterval(() => {
     if (VIEW === 'overview') loadOverview();
     else if (VIEW === 'scripts') loadScripts();
     else if (VIEW === 'webhooks') loadWhLogs();

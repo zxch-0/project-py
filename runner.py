@@ -1,9 +1,9 @@
 """
-PyRunner — Exécution interactive des scripts.
-- stdin en pipe : le site détecte quand le script attend une réponse (via /proc wchan)
-  et l'utilisateur répond depuis la console web, ou les réponses pré-remplies
-  sont envoyées automatiquement une par une.
-- Logs structurés persistés (output.jsonl : seq, heure, type, niveau, texte)
+zach-runner — Execution interactive des scripts.
+- stdin en pipe : le site detecte quand le script attend une reponse (via /proc wchan)
+  et l'utilisateur repond depuis la console web, ou les reponses pre-remplies
+  sont envoyees automatiquement une par une.
+- Logs structures persistants (output.jsonl : seq, heure, type, niveau, texte)
   + miroir brut (output.log).
 """
 import codecs
@@ -26,9 +26,9 @@ JSONL_MAX_BYTES = 2 * 1024 * 1024   # rotation au-delà
 JSONL_KEEP_BYTES = 1 * 1024 * 1024
 MAX_PENDING = 2000
 
-LEVEL_ERR_RE = re.compile(r"(Traceback|Error|Exception|FAILED|failed|ERREUR|❌|⛔|Fatal|fatal)", re.IGNORECASE)
-LEVEL_WARN_RE = re.compile(r"(Warning|WARN|⚠|dépréci|deprecat)", re.IGNORECASE)
-LEVEL_OK_RE = re.compile(r"(✅|SUCCESS|succès|success|démarré|terminé|OK\b)", re.IGNORECASE)
+LEVEL_ERR_RE = re.compile(r"(Traceback|Error|Exception|FAILED|failed|ERREUR|Fatal|fatal)", re.IGNORECASE)
+LEVEL_WARN_RE = re.compile(r"(Warning|WARN|deprecat|dépréci)", re.IGNORECASE)
+LEVEL_OK_RE = re.compile(r"(SUCCESS|succès|success|démarré|terminé|\bOK\b|\bDone\b)", re.IGNORECASE)
 
 
 def utcnow_iso() -> str:
@@ -147,6 +147,7 @@ class LiveProcess:
         self.proc: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self._stdin_lock = threading.Lock()
+        self.run_token: str | None = None  # generation du run (anti-ecrasement)
         self.seq = last_seq(jsonl_path(sdir))
         self.pending = ""          # texte après le dernier \n (prompt potentiel)
         self.pending_lock = threading.Lock()
@@ -196,7 +197,7 @@ class LiveProcess:
             try:
                 with open(log_path(self.sdir), "a", encoding="utf-8") as f:
                     if ltype == "in":
-                        f.write(f"❯ {text}\n")
+                        f.write(f"> {text}\n")
                     elif ltype == "sys":
                         f.write(f"[{obj['t']}] {text}\n")
                     else:
@@ -212,12 +213,12 @@ class LiveProcess:
         lp = log_path(self.sdir)
         try:
             with open(lp, "a", encoding="utf-8") as f:
-                f.write(f"\n{'=' * 60}\n[{utcnow_iso()}] ▶ {' '.join(argv)}\n{'=' * 60}\n")
+                f.write(f"\n{'=' * 60}\n[{utcnow_iso()}] {' '.join(argv)}\n{'=' * 60}\n")
         except OSError:
             pass
-        self.emit("sys", f"▶ Démarrage : {' '.join(argv)}", "info")
+        self.emit("sys", f"Démarrage : {' '.join(argv)}", "info")
         if self.auto_answers:
-            self.emit("sys", f"🤖 {len(self.auto_answers)} réponse(s) pré-remplie(s) — envoi automatique", "info")
+            self.emit("sys", f"{len(self.auto_answers)} réponse(s) pré-remplie(s) — envoi automatique", "info")
         self.proc = subprocess.Popen(
             argv, cwd=str(self.sdir), env=env,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -319,11 +320,14 @@ class LiveProcess:
         pipe = self._blocked_on_pipe()
         if pipe is True:
             return True
-        if pipe is False:
-            return False
-        # Fallback sans /proc : prompt non vide + inactivité longue
         with self.pending_lock:
             pend = self.pending.strip()
+        if pipe is False:
+            # Pas de blocage pipe detecte : cas des boucles evenementielles
+            # (Node.js en epoll, etc.). On se fie au prompt en suspens
+            # (texte sans saut de ligne) + inactivite prolongee.
+            return bool(pend) and idle > 2.0
+        # Sans /proc : heuristique temporelle uniquement
         return bool(pend) and idle > 2.5
 
     def current_prompt(self) -> str:
@@ -361,7 +365,7 @@ class LiveProcess:
         self._recent_out = []  # le contexte menu repart de zéro après chaque réponse
         self.qa.append({"prompt": prompt, "answer": text, "auto": auto,
                         "t": utcnow_iso()})
-        self.emit("in", ("🤖 " if auto else "") + text, "info")
+        self.emit("in", ("[auto] " if auto else "") + text, "info")
         self.last_output_ts = time.time()  # anti-rebond détection
         return True, "Réponse envoyée"
 
@@ -380,7 +384,7 @@ class LiveProcess:
             except Exception:
                 continue
         if self.auto_answers and self.is_alive():
-            self.emit("sys", f"ℹ️ {len(self.auto_answers)} réponse(s) pré-remplie(s) restante(s) ignorée(s) (plus de question détectée)", "warn")
+            self.emit("sys", f"{len(self.auto_answers)} réponse(s) pré-remplie(s) restante(s) ignorée(s) (plus de question détectée)", "warn")
 
     # ---------------- fin ----------------
 
@@ -397,12 +401,13 @@ class LiveProcess:
         try:
             info = {"exit_code": rc, "duration_s": round(dur, 1),
                     "stopped_by_user": self.stop_requested,
-                    "answers_sent": self.answers_sent, "qa": self.qa}
+                    "answers_sent": self.answers_sent, "qa": self.qa,
+                    "run_token": self.run_token}
             if self.stop_requested:
-                self.emit("sys", f"⏹ Arrêté (durée {dur:.0f}s)", "warn")
+                self.emit("sys", f"Arrêté (durée {dur:.0f}s)", "warn")
                 info["reason"] = "stopped"
             elif rc == 0:
-                self.emit("sys", f"✅ Terminé avec succès en {dur:.0f}s", "success")
+                self.emit("sys", f"Terminé avec succès en {dur:.0f}s", "success")
                 info["reason"] = "success"
             else:
                 tail = read_jsonl_tail_text(jsonl_path(self.sdir))
@@ -410,9 +415,9 @@ class LiveProcess:
                 info["reason"] = "crash"
                 info["diagnosis"] = diag
                 if diag and diag.get("exception"):
-                    self.emit("sys", f"❌ Crash (code {rc}) — {diag['exception']}: {diag.get('message','')[:150]}", "error")
+                    self.emit("sys", f"Crash (code {rc}) — {diag['exception']}: {diag.get('message','')[:150]}", "error")
                 else:
-                    self.emit("sys", f"❌ Arrêté avec le code {rc}", "error")
+                    self.emit("sys", f"Arrêté avec le code {rc}", "error")
             if self.on_exit:
                 try:
                     self.on_exit(self.script_id, info)

@@ -1,33 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Initialisation · PyRunner{% endblock %}
+{% block title %}Initialisation · zach-runner{% endblock %}
 {% block body %}
 <div class="auth-wrap">
   <div class="auth-card">
-    <div class="auth-logo">Py</div>
-    <div class="text-4xl mb-3">🔐</div>
-    <h1 class="text-2xl font-extrabold mb-1">Bienvenue, chef.</h1>
+    <div class="auth-logo">ZR</div>
+    <h1 class="text-2xl font-extrabold mb-1">zach-runner</h1>
     <p class="text-sm text-slate-400 mb-6">
-      C'est la <strong class="text-slate-200">toute première visite</strong> : définis ton
-      <strong class="text-slate-200">code secret</strong>.
-      Personne d'autre ne pourra le faire après toi — cette page se verrouillera automatiquement.
+      Premiere visite : definissez votre <strong class="text-slate-200">code secret</strong>.
+      Cette page se verrouillera ensuite automatiquement — vous seul aurez acces.
     </p>
     {% if error %}
     <div class="bg-red-500/15 border border-red-500/40 text-red-200 text-sm rounded-lg px-4 py-3 mb-4">{{ error }}</div>
     {% endif %}
     <form method="post" class="space-y-4">
       <div>
-        <label class="label">Code secret (min. 6 caractères)</label>
+        <label class="label">Code secret (min. 6 caracteres)</label>
         <input type="password" name="code" required minlength="6" autofocus autocomplete="new-password"
-               class="input" placeholder="Ex : mon-code-ultra-secret-2026">
+               class="input" placeholder="Choisissez un code long et unique">
       </div>
       <div>
-        <label class="label">Confirme le code</label>
+        <label class="label">Confirmation</label>
         <input type="password" name="confirm" required minlength="6" autocomplete="new-password"
-               class="input" placeholder="Retape le même code">
+               class="input" placeholder="Retapez le meme code">
       </div>
-      <button class="btn-primary w-full">🔒 Verrouiller l'accès avec ce code</button>
+      <button class="btn-primary w-full">Securiser l'acces</button>
     </form>
-    <p class="text-xs text-slate-500 mt-4">💡 Choisis un code long et unique. Il te sera demandé à chaque connexion sur un nouvel appareil.</p>
   </div>
 </div>
 {% endblock %}

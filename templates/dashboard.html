@@ -1,28 +1,40 @@
 {% extends "base.html" %}
-{% block title %}Console · PyRunner{% endblock %}
+{% block title %}Console · zach-runner{% endblock %}
 {% block body %}
 <div class="app">
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar" id="sidebar">
     <div class="side-logo" onclick="showView('overview')">
-      <div class="logo-badge">Py</div>
+      <div class="logo-badge">ZR</div>
       <div>
-        <div class="logo-name">PyRunner</div>
-        <div class="logo-sub">Console privée</div>
+        <div class="logo-name">zach-runner</div>
+        <div class="logo-sub">Console privee</div>
       </div>
     </div>
     <nav class="side-nav">
-      <button class="nav-item active" id="nav-overview" onclick="showView('overview')"><span class="nav-ico">🏠</span> Vue d'ensemble</button>
-      <button class="nav-item" id="nav-scripts" onclick="showView('scripts')"><span class="nav-ico">📜</span> Scripts <span class="nav-count" id="nav-scripts-count"></span></button>
-      <button class="nav-item" id="nav-webhooks" onclick="showView('webhooks')"><span class="nav-ico">🔔</span> Webhooks <span class="nav-count" id="nav-wh-count"></span></button>
-      <button class="nav-item" id="nav-help" onclick="showView('help')"><span class="nav-ico">❓</span> Aide</button>
+      <button class="nav-item active" id="nav-overview" onclick="showView('overview')">
+        <svg viewBox="0 0 24 24" class="nav-svg"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Vue d'ensemble</button>
+      <button class="nav-item" id="nav-scripts" onclick="showView('scripts')">
+        <svg viewBox="0 0 24 24" class="nav-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        Scripts <span class="nav-count" id="nav-scripts-count"></span></button>
+      <button class="nav-item" id="nav-webhooks" onclick="showView('webhooks')">
+        <svg viewBox="0 0 24 24" class="nav-svg"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Webhooks <span class="nav-count" id="nav-wh-count"></span></button>
+      <button class="nav-item" id="nav-help" onclick="showView('help')">
+        <svg viewBox="0 0 24 24" class="nav-svg"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        Aide</button>
     </nav>
     <div class="side-foot">
-      <button class="quick-add" onclick="openNewScript()">＋ Nouveau script</button>
+      <button class="quick-add" onclick="openNewScript()">Nouveau script</button>
       <div class="side-status"><span id="health-dot" class="dot dot-ok pulse"></span><span id="health-txt">Serveur en ligne</span></div>
       <div class="side-row">
-        <button onclick="openSettings()" class="mini-btn" title="Changer le code secret">⚙️</button>
-        <a href="/logout" class="mini-btn" title="Déconnexion">🚪</a>
+        <button onclick="openSettings()" class="mini-btn" title="Changer le code secret">
+          <svg viewBox="0 0 24 24" class="btn-svg"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/></svg>
+        </button>
+        <a href="/logout" class="mini-btn" title="Deconnexion">
+          <svg viewBox="0 0 24 24" class="btn-svg"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        </a>
       </div>
     </div>
   </aside>
@@ -30,10 +42,10 @@
   <!-- ============ MAIN ============ -->
   <main class="main">
     <header class="topbar">
-      <button class="burger" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <button class="burger" onclick="document.getElementById('sidebar').classList.toggle('open')">Menu</button>
       <div>
         <h1 id="page-title">Vue d'ensemble</h1>
-        <p id="page-sub">Tout ce qui se passe sur ton serveur, en un coup d'œil.</p>
+        <p id="page-sub">Tout ce qui se passe sur le serveur, en un coup d'oeil.</p>
       </div>
       <div class="top-actions" id="top-actions"></div>
     </header>
@@ -44,17 +56,23 @@
         <div class="stat-grid" id="ov-stats"></div>
         <div class="ov-grid">
           <div class="card pad">
-            <div class="card-title">⚡ En ce moment <button class="link" onclick="showView('scripts')">tout voir →</button></div>
+            <div class="card-title">En ce moment <button class="link" onclick="showView('scripts')">tout voir</button></div>
             <div id="ov-running"></div>
           </div>
           <div class="card pad">
-            <div class="card-title">🧾 Activité récente</div>
+            <div class="card-title">Activite recente</div>
             <div id="ov-activity" class="activity"></div>
           </div>
         </div>
-        <div class="card pad">
-          <div class="card-title">🔔 Webhooks — dernières 24h <button class="link" onclick="showView('webhooks')">détails →</button></div>
-          <div id="ov-chart" class="hchart"></div>
+        <div class="ov-grid">
+          <div class="card pad">
+            <div class="card-title">Webhooks — dernieres 24h <button class="link" onclick="showView('webhooks')">details</button></div>
+            <div id="ov-chart" class="hchart"></div>
+          </div>
+          <div class="card pad">
+            <div class="card-title">Runtimes disponibles</div>
+            <div id="ov-runtimes"></div>
+          </div>
         </div>
       </section>
 
@@ -63,28 +81,27 @@
         <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div class="text-sm text-slate-400" id="scripts-count"></div>
           <div class="flex gap-2">
-            <button onclick="loadScripts()" class="btn-ghost text-sm">🔄 Actualiser</button>
-            <button onclick="openNewScript()" class="btn-primary text-sm">＋ Nouveau script</button>
+            <button onclick="loadScripts()" class="btn-ghost text-sm">Actualiser</button>
+            <button onclick="openNewScript()" class="btn-primary text-sm">Nouveau script</button>
           </div>
         </div>
         <div id="scripts-grid" class="scripts-grid"></div>
         <div id="scripts-empty" class="hidden card pad text-center text-slate-400">
-          <div class="text-5xl mb-3">📭</div>
-          <div class="font-bold text-slate-200 mb-1">Aucun script pour le moment</div>
-          <p class="text-sm mb-4">Upload ton premier <code>.py</code> ou crée-en un depuis un modèle.<br>Le site détectera automatiquement ses questions et menus.</p>
-          <button onclick="openNewScript()" class="btn-primary text-sm">＋ Ajouter un script</button>
+          <div class="empty-title">Aucun script pour le moment</div>
+          <p class="text-sm mb-4">Importez un fichier (.py, .js, .sh), une archive de projet (.zip, .rar)<br>ou creez un script depuis un modele.</p>
+          <button onclick="openNewScript()" class="btn-primary text-sm">Ajouter un script</button>
         </div>
       </section>
 
-      <!-- ===== DÉTAIL SCRIPT ===== -->
+      <!-- ===== DETAIL ===== -->
       <section id="view-detail" class="view hidden">
-        <button onclick="showView('scripts')" class="link mb-3">← Retour aux scripts</button>
+        <button onclick="showView('scripts')" class="link mb-3">Retour aux scripts</button>
         <div class="detail-head card pad">
           <div class="flex-1 min-w-[220px]">
             <div class="flex items-center gap-3 flex-wrap">
               <h2 id="d-name" class="text-xl font-extrabold"></h2>
               <span id="d-status"></span>
-              <span id="d-waiting" class="hidden pill pill-wait pulse">💬 attend ta réponse</span>
+              <span id="d-waiting" class="hidden pill pill-wait pulse">En attente de reponse</span>
             </div>
             <div id="d-meta" class="text-xs text-slate-400 font-mono mt-1"></div>
           </div>
@@ -92,67 +109,90 @@
         </div>
         <div id="d-diag"></div>
         <div class="detail-grid">
-          <!-- Console -->
           <div class="card console-card">
             <div class="term-head">
               <div class="term-dots"><span></span><span></span><span></span></div>
               <div class="term-title">Console interactive</div>
               <div class="term-controls">
-                <input id="term-search" class="term-search" placeholder="🔍 filtrer…" oninput="filterConsole()">
+                <input id="term-search" class="term-search" placeholder="Filtrer..." oninput="filterConsole()">
                 <select id="term-level" class="term-select" onchange="filterConsole()">
                   <option value="">Tous niveaux</option>
-                  <option value="error">❌ Erreurs</option>
-                  <option value="warn">⚠️ Alertes</option>
-                  <option value="in">❯ Réponses</option>
-                  <option value="sys">⚙️ Système</option>
+                  <option value="error">Erreurs</option>
+                  <option value="warn">Alertes</option>
+                  <option value="in">Reponses</option>
+                  <option value="sys">Systeme</option>
                 </select>
-                <button id="term-follow" class="tbtn on" onclick="toggleFollow()" title="Suivre le direct">⬇</button>
-                <button id="term-pause" class="tbtn" onclick="togglePause()" title="Pause">⏸</button>
-                <button class="tbtn" onclick="clearConsoleView()" title="Effacer l'affichage">🧹</button>
-                <a id="term-dl" href="#" class="tbtn" title="Télécharger les logs">⬇️</a>
+                <button id="term-follow" class="tbtn on" onclick="toggleFollow()" title="Suivre le direct">Suivi</button>
+                <button id="term-pause" class="tbtn" onclick="togglePause()" title="Pause">Pause</button>
+                <button class="tbtn" onclick="clearConsoleView()" title="Effacer l'affichage">Effacer</button>
+                <a id="term-dl" href="#" class="tbtn" title="Telecharger les logs">Logs</a>
               </div>
             </div>
-            <div id="terminal" class="terminal"><div class="t-empty">Connexion à la console…</div></div>
+            <div id="terminal" class="terminal"><div class="t-empty">Connexion a la console...</div></div>
             <div id="waitbar" class="waitbar hidden">
-              <div class="wait-prompt"><span class="wait-ico">💬</span><code id="wait-text"></code></div>
+              <div class="wait-prompt"><span class="wait-ico"></span><code id="wait-text"></code></div>
               <div id="wait-chips" class="chips"></div>
               <div class="wait-row">
-                <input id="wait-input" class="input font-mono" placeholder="Ta réponse… (Entrée pour envoyer)" autocomplete="off">
-                <button onclick="sendWaitInput()" class="btn-primary text-sm whitespace-nowrap">Envoyer ⏎</button>
+                <input id="wait-input" class="input font-mono" placeholder="Votre reponse... (Entree pour envoyer)" autocomplete="off">
+                <button onclick="sendWaitInput()" class="btn-primary text-sm whitespace-nowrap">Envoyer</button>
               </div>
             </div>
           </div>
-          <!-- Panneau latéral -->
           <div class="side-panel">
             <div class="card pad">
               <div class="mini-tabs">
-                <button class="mini-tab active" id="mtab-config" onclick="detailTab('config')">⚙️ Config</button>
-                <button class="mini-tab" id="mtab-code" onclick="detailTab('code')">📝 Code</button>
-                <button class="mini-tab" id="mtab-runs" onclick="detailTab('runs')">🏁 Executions</button>
+                <button class="mini-tab active" id="mtab-config" onclick="detailTab('config')">Config</button>
+                <button class="mini-tab" id="mtab-code" onclick="detailTab('code')">Fichiers</button>
+                <button class="mini-tab" id="mtab-runs" onclick="detailTab('runs')">Executions</button>
               </div>
               <div id="dtab-config">
                 <label class="label">Nom</label>
                 <input id="cfg-name" class="input mb-3">
-                <label class="label">Arguments</label>
-                <input id="cfg-args" class="input font-mono text-sm mb-3" placeholder="--mode live">
+                <div id="cfg-entry-row" class="hidden">
+                  <label class="label">Point d'entree</label>
+                  <select id="cfg-entry" class="input mb-3" onchange="changeEntry()"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="label">Runtime</label>
+                    <select id="cfg-runtime" class="input mb-3">
+                      <option value="auto">Auto (detecte)</option>
+                      <option value="python">Python</option>
+                      <option value="node">Node.js</option>
+                      <option value="bash">Shell</option>
+                      <option value="custom">Personnalise</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="label">Arguments</label>
+                    <input id="cfg-args" class="input font-mono text-sm mb-3" placeholder="--mode live">
+                  </div>
+                </div>
+                <div id="cfg-custom-row" class="hidden">
+                  <label class="label">Commande personnalisee <span class="hint">({file} = script, ex : php -f)</span></label>
+                  <input id="cfg-custom" class="input font-mono text-sm mb-3" placeholder="php -f">
+                </div>
                 <label class="label">Variables d'environnement <span class="hint">(CLE=valeur, une par ligne)</span></label>
                 <textarea id="cfg-env" rows="3" class="input font-mono text-sm mb-3" placeholder="API_KEY=xxx"></textarea>
-                <label class="label">requirements.txt</label>
+                <label class="label">requirements.txt <span class="hint">(Python)</span></label>
                 <textarea id="cfg-req" rows="3" class="input font-mono text-sm mb-2" placeholder="requests"></textarea>
-                <div class="flex gap-2 mb-3">
-                  <button onclick="saveConfig()" class="btn-primary text-sm flex-1">💾 Enregistrer</button>
-                  <button onclick="installDeps()" class="btn-ghost text-sm">📦 Installer</button>
+                <div class="flex gap-2 mb-3 flex-wrap">
+                  <button onclick="saveConfig()" class="btn-primary text-sm flex-1">Enregistrer</button>
+                  <button onclick="installDeps()" class="btn-ghost text-sm">Installer (pip)</button>
+                  <button onclick="npmInstall()" id="btn-npm" class="btn-ghost text-sm hidden">Installer (npm)</button>
                 </div>
                 <div id="cfg-analysis" class="analysis-mini"></div>
               </div>
               <div id="dtab-code" class="hidden">
+                <div id="file-tree" class="file-tree mb-2"></div>
                 <div class="flex justify-between items-center mb-2">
-                  <label class="label mb-0">Code source</label>
-                  <button onclick="reanalyze()" class="link text-xs">🧠 Re-scanner</button>
+                  <label class="label mb-0 font-mono" id="editor-path"></label>
+                  <button onclick="reanalyze()" class="link text-xs">Re-scanner</button>
                 </div>
                 <textarea id="cfg-code" rows="18" class="input font-mono code-edit" spellcheck="false"></textarea>
-                <button onclick="saveConfig()" class="btn-primary text-sm mt-2 w-full">💾 Enregistrer le code</button>
-                <p class="hint mt-2">La syntaxe est vérifiée avant enregistrement. Redémarre le script pour appliquer.</p>
+                <div id="editor-msg" class="text-xs mt-1"></div>
+                <button onclick="saveFile()" class="btn-primary text-sm mt-2 w-full">Enregistrer le fichier</button>
+                <p class="hint mt-2">La syntaxe est verifiee avant enregistrement. Redemarrez le script pour appliquer.</p>
               </div>
               <div id="dtab-runs" class="hidden">
                 <div id="d-qa"></div>
@@ -166,84 +206,91 @@
       <!-- ===== WEBHOOKS ===== -->
       <section id="view-webhooks" class="view hidden">
         <div class="card pad mb-5">
-          <h2 class="font-bold text-lg mb-1">🔔 Ton URL webhook privée</h2>
-          <p class="text-sm text-slate-400 mb-3">Branche-la dans ton service externe. Chaque appel est journalisé ci-dessous avec tous les détails.</p>
+          <h2 class="font-bold text-lg mb-1">URL webhook privee</h2>
+          <p class="text-sm text-slate-400 mb-3">Branchez-la dans votre service externe. Chaque appel est journalise ci-dessous avec tous les details.</p>
           <div class="flex flex-col md:flex-row gap-2">
             <code id="wh-url" class="wh-url">{{ webhook_url }}</code>
             <div class="flex gap-2">
-              <button onclick="copyWebhook()" class="btn-ghost text-sm whitespace-nowrap">📋 Copier</button>
-              <button onclick="testWebhook()" class="btn-ghost text-sm whitespace-nowrap">🧪 Test</button>
-              <button onclick="regenWebhook()" class="btn-ghost text-sm whitespace-nowrap" title="Invalide l'ancienne URL">🔄 Nouvelle URL</button>
+              <button onclick="copyWebhook()" class="btn-ghost text-sm whitespace-nowrap">Copier</button>
+              <button onclick="testWebhook()" class="btn-ghost text-sm whitespace-nowrap">Tester</button>
+              <button onclick="regenWebhook()" class="btn-ghost text-sm whitespace-nowrap" title="Invalide l'ancienne URL">Regenerer</button>
             </div>
           </div>
           <div class="grid md:grid-cols-3 gap-3 mt-4">
             <div class="stat"><div class="stat-num" id="wh-total">–</div><div class="stat-lbl">appels au total</div></div>
-            <div class="stat"><div class="stat-num" id="wh-24h">–</div><div class="stat-lbl">dernières 24h</div></div>
+            <div class="stat"><div class="stat-num" id="wh-24h">–</div><div class="stat-lbl">dernieres 24h</div></div>
             <div class="stat"><div class="stat-num text-base break-all" id="wh-last">–</div><div class="stat-lbl">dernier appel</div></div>
           </div>
           <div class="mt-4"><div id="wh-chart" class="hchart"></div></div>
           <div class="mt-4 p-4 rounded-xl bg-black/30 border border-line">
-            <h3 class="font-semibold text-sm mb-2">⚡ Déclencher un script à chaque appel <span class="hint">(rejoue tes dernières réponses automatiquement)</span></h3>
+            <h3 class="font-semibold text-sm mb-2">Declencher un script a chaque appel <span class="hint">( rejoue vos dernieres reponses automatiquement)</span></h3>
             <div class="flex flex-col md:flex-row gap-3 md:items-end">
               <div class="flex-1">
-                <label class="label">Script à exécuter</label>
+                <label class="label">Script a executer</label>
                 <select id="wh-linked" class="input"><option value="">— Aucun —</option></select>
               </div>
               <label class="check"><input type="checkbox" id="wh-autorun"> Activer</label>
               <label class="check"><input type="checkbox" id="wh-restart"> Relancer si en cours</label>
-              <button onclick="saveWebhookCfg()" class="btn-primary text-sm whitespace-nowrap">💾 Enregistrer</button>
+              <button onclick="saveWebhookCfg()" class="btn-primary text-sm whitespace-nowrap">Enregistrer</button>
             </div>
           </div>
         </div>
         <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h2 class="font-bold text-lg">🧾 Historique des appels</h2>
+          <h2 class="font-bold text-lg">Historique des appels</h2>
           <div class="flex gap-2 flex-wrap">
-            <input id="wh-search" class="input !w-48 text-sm" placeholder="🔍 rechercher…" oninput="renderWhLogs()">
+            <input id="wh-search" class="input !w-48 text-sm" placeholder="Rechercher..." oninput="renderWhLogs()">
             <select id="wh-method" class="input !w-32 text-sm" onchange="renderWhLogs()">
-              <option value="">Toutes méthodes</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+              <option value="">Toutes methodes</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
             </select>
-            <button onclick="loadWhLogs()" class="btn-ghost text-sm">🔄</button>
-            <button onclick="clearWhLogs()" class="btn-ghost text-sm">🧹 Tout effacer</button>
+            <button onclick="loadWhLogs()" class="btn-ghost text-sm">Actualiser</button>
+            <button onclick="clearWhLogs()" class="btn-ghost text-sm">Tout effacer</button>
           </div>
         </div>
         <div id="wh-list" class="space-y-3"></div>
         <div id="wh-empty" class="hidden card pad text-center text-slate-400">
-          <div class="text-4xl mb-2">📭</div>Aucun appel reçu pour le moment.<br>
-          <span class="text-sm">Clique « 🧪 Test » ou envoie une requête vers ton URL.</span>
+          <div class="empty-title">Aucun appel recu pour le moment.</div>
+          <span class="text-sm">Cliquez « Tester » ou envoyez une requete vers votre URL.</span>
         </div>
       </section>
 
       <!-- ===== AIDE ===== -->
       <section id="view-help" class="view hidden">
         <div class="card pad help">
-          <h2>❓ Comment ça marche ?</h2>
+          <h2>Fonctionnement</h2>
           <ol>
-            <li><strong>Ajoute</strong> ton script <code>.py</code> (upload ou modèle).</li>
-            <li>Le site le <strong>scanne</strong> 🧠 : questions <code>input()</code>, menus <code>1, 2, 3</code>, librairies manquantes.</li>
-            <li>Tu <strong>remplis les réponses</strong> dans le formulaire (ou tu réponds en direct dans la console).</li>
-            <li>Le script <strong>tourne sur le serveur</strong> — ferme la fenêtre, ça continue ✔</li>
+            <li><strong>Ajoutez</strong> un fichier (<code>.py</code>, <code>.js</code>, <code>.sh</code>) ou un <strong>projet complet</strong> (<code>.zip</code>, <code>.tar.gz</code>, <code>.rar</code>, <code>.7z</code>).</li>
+            <li>Le site <strong>analyse</strong> le code : questions, menus a choix, dependances, risques.</li>
+            <li>Vous <strong>remplissez les reponses</strong> dans le formulaire, puis le script demarre.</li>
+            <li>Il <strong>tourne sur le serveur</strong> : vous pouvez fermer la fenetre, l'execution continue.</li>
           </ol>
-          <h3>💬 Questions & menus interactifs</h3>
-          <p>Si ton script contient <code>input("URL webhook : ")</code> ou un menu <code>1 - Démarrer / 2 - Quitter</code>, le site les détecte et te propose :</p>
+          <h3>Questions et menus interactifs</h3>
+          <p>Si le script contient <code>input("URL webhook : ")</code>, <code>read -p</code> ou un menu <code>1 - Demarrer / 2 - Quitter</code>, le site les detecte et propose :</p>
           <ul>
             <li>un <strong>formulaire avant le lancement</strong> (avec boutons de choix cliquables),</li>
-            <li>une <strong>console interactive</strong> pendant l'exécution pour répondre aux questions restantes,</li>
-            <li>la <strong>relecture automatique</strong> de tes réponses au redémarrage ou via webhook.</li>
+            <li>une <strong>console interactive</strong> pendant l'execution pour les questions restantes,</li>
+            <li>la <strong>relecture automatique</strong> de vos reponses au redemarrage ou via webhook.</li>
           </ul>
-          <h3>📦 Librairies (requests, pandas…)</h3>
-          <p>Le scan détecte les imports et propose d'ajouter les paquets au <code>requirements.txt</code>. En cas de crash <code>ModuleNotFoundError</code>, un bouton <strong>« 📦 Installer »</strong> apparaît dans le diagnostic.</p>
-          <h3>🔔 Webhook dans ton script</h3>
+          <h3>Projets multi-fichiers</h3>
+          <p>Uploadez une archive : le site l'extrait, liste les fichiers, detecte les <strong>points d'entree possibles</strong> et les manifestes (<code>requirements.txt</code>, <code>package.json</code>). Choisissez l'entree, installez les dependances (pip ou npm), puis lancez. Chaque fichier est modifiable dans l'editeur integre.</p>
+          <h3>Runtimes supportes</h3>
+          <ul>
+            <li><strong>Python</strong> (.py) — analyse complete, pip, verification syntaxique.</li>
+            <li><strong>Node.js</strong> (.js, .mjs, .cjs) — detection des questions et paquets npm.</li>
+            <li><strong>Shell</strong> (.sh) — detection des <code>read -p</code> et menus <code>select</code>.</li>
+            <li><strong>Personnalise</strong> — tapez n'importe quelle commande (php, ruby, deno...) avec <code>{file}</code> comme script.</li>
+          </ul>
+          <h3>Webhook dans votre script</h3>
 <pre class="code-block">import os, json
 data = json.loads(os.environ.get("WEBHOOK_PAYLOAD", "{}"))
-print("Signal reçu :", data)</pre>
-          <h3>🧪 Tester le webhook</h3>
+print("Signal recu :", data)</pre>
+          <h3>Tester le webhook</h3>
           <pre class="code-block" id="help-curl">curl -X POST "{{ webhook_url }}" \
   -H "Content-Type: application/json" \
   -d '{"signal":"BUY","prix":123.4}'</pre>
-          <h3>⚠️ Sur Render</h3>
+          <h3>Notes Render</h3>
           <ul>
-            <li>Le plan <strong>Starter</strong> garde tes scripts en vie 24/7 (le gratuit les met en veille).</li>
-            <li>Après un <strong>redéploiement</strong>, relance tes scripts (ou déclenche-les via webhook).</li>
+            <li>Le plan <strong>Starter</strong> garde vos scripts en vie 24/7 (le plan gratuit les met en veille).</li>
+            <li>Apres un <strong>redeploiement</strong>, relancez vos scripts (ou declenchez-les via webhook).</li>
           </ul>
         </div>
       </section>
@@ -251,23 +298,23 @@ print("Signal reçu :", data)</pre>
   </main>
 </div>
 
-<!-- ============ MODALE NOUVEAU SCRIPT ============ -->
+<!-- ============ MODALE NOUVEAU ============ -->
 <div id="modal-new" class="modal hidden">
   <div class="modal-box">
     <div class="flex justify-between items-center mb-4">
-      <h3 class="font-extrabold text-lg">＋ Nouveau script</h3>
-      <button onclick="closeModal('modal-new')" class="mini-btn">✕</button>
+      <h3 class="font-extrabold text-lg">Nouveau script</h3>
+      <button onclick="closeModal('modal-new')" class="mini-btn">Fermer</button>
     </div>
     <div class="mini-tabs mb-4">
-      <button class="mini-tab active" id="ntab-upload" onclick="newTab('upload')">⬆️ Depuis mon PC</button>
-      <button class="mini-tab" id="ntab-create" onclick="newTab('create')">📝 Créer ici</button>
+      <button class="mini-tab active" id="ntab-upload" onclick="newTab('upload')">Fichier</button>
+      <button class="mini-tab" id="ntab-archive" onclick="newTab('archive')">Archive projet</button>
+      <button class="mini-tab" id="ntab-create" onclick="newTab('create')">Creer</button>
     </div>
     <div id="npage-upload">
       <div id="dropzone" class="dropzone">
-        <div class="text-4xl mb-2">📥</div>
-        <div class="font-bold">Glisse ton fichier .py ici</div>
-        <div class="text-sm text-slate-400">ou <span class="link">choisis un fichier</span></div>
-        <input type="file" id="file-input" accept=".py" class="hidden">
+        <div class="dz-title">Deposez votre fichier ici</div>
+        <div class="text-sm text-slate-400">.py, .js, .mjs, .cjs, .sh — ou <span class="link">choisissez un fichier</span></div>
+        <input type="file" id="file-input" accept=".py,.js,.mjs,.cjs,.sh,.bash" class="hidden">
       </div>
       <div id="dz-file" class="hidden dz-file"></div>
       <div class="grid md:grid-cols-2 gap-3 mt-4">
@@ -275,45 +322,59 @@ print("Signal reçu :", data)</pre>
         <div><label class="label">Arguments</label><input id="up-args" class="input font-mono text-sm" placeholder="--mode live"></div>
       </div>
       <div class="mt-3"><label class="label">Variables d'environnement</label><textarea id="up-env" rows="2" class="input font-mono text-sm" placeholder="CLE_API=xxxx"></textarea></div>
-      <div class="mt-3"><label class="label">requirements.txt</label><textarea id="up-req" rows="2" class="input font-mono text-sm" placeholder="requests"></textarea></div>
-      <label class="check mt-3"><input type="checkbox" id="up-install" checked> 📦 Installer les dépendances après l'upload</label>
+      <div class="mt-3"><label class="label">requirements.txt (Python)</label><textarea id="up-req" rows="2" class="input font-mono text-sm" placeholder="requests"></textarea></div>
+      <label class="check mt-3"><input type="checkbox" id="up-install" checked> Installer les dependances apres l'upload</label>
       <div id="up-msg" class="text-sm mt-2"></div>
-      <button id="up-btn" onclick="doUpload()" class="btn-primary w-full mt-3">Uploader & analyser 🧠</button>
+      <button id="up-btn" onclick="doUpload()" class="btn-primary w-full mt-3">Uploader et analyser</button>
+    </div>
+    <div id="npage-archive" class="hidden">
+      <div id="dropzone-arch" class="dropzone">
+        <div class="dz-title">Deposez votre archive ici</div>
+        <div class="text-sm text-slate-400">.zip, .tar, .tar.gz, .rar, .7z (max 64 Mo) — ou <span class="link">choisissez un fichier</span></div>
+        <input type="file" id="arch-input" accept=".zip,.tar,.tgz,.gz,.rar,.7z" class="hidden">
+      </div>
+      <div id="dz-arch-file" class="hidden dz-file"></div>
+      <div class="mt-3"><label class="label">Nom du projet</label><input id="arch-name" class="input" placeholder="Ex : Mon bot complet"></div>
+      <div id="arch-support" class="hint mt-2"></div>
+      <div id="arch-msg" class="text-sm mt-2"></div>
+      <button id="arch-btn" onclick="doUploadArchive()" class="btn-primary w-full mt-3">Uploader et analyser le projet</button>
     </div>
     <div id="npage-create" class="hidden">
       <label class="label">Nom du script</label>
       <input id="cr-name" class="input mb-3" placeholder="Ex : Mon bot">
-      <label class="label">Modèle de départ</label>
+      <label class="label">Modele de depart</label>
       <div class="tpl-grid" id="tpl-grid">
-        <button class="tpl active" data-t="blank">📄<span>Vierge</span></button>
-        <button class="tpl" data-t="interactif">💬<span>Menu interactif</span></button>
-        <button class="tpl" data-t="webhook">🔔<span>Bot webhook</span></button>
-        <button class="tpl" data-t="boucle">🔁<span>Tâche en boucle</span></button>
+        <button class="tpl active" data-t="py_blank"><span class="tpl-ico">PY</span><span>Vierge</span></button>
+        <button class="tpl" data-t="py_menu"><span class="tpl-ico">PY</span><span>Menu interactif</span></button>
+        <button class="tpl" data-t="py_webhook"><span class="tpl-ico">PY</span><span>Bot webhook</span></button>
+        <button class="tpl" data-t="py_loop"><span class="tpl-ico">PY</span><span>Boucle</span></button>
+        <button class="tpl" data-t="js_blank"><span class="tpl-ico">JS</span><span>Node vierge</span></button>
+        <button class="tpl" data-t="sh_blank"><span class="tpl-ico">SH</span><span>Shell vierge</span></button>
       </div>
-      <button onclick="doCreate()" class="btn-primary w-full mt-4">Créer & analyser 🧠</button>
+      <button onclick="doCreate()" class="btn-primary w-full mt-4">Creer et analyser</button>
     </div>
   </div>
 </div>
 
-<!-- ============ MODALE LANCEMENT (analyse) ============ -->
+<!-- ============ MODALE LANCEMENT ============ -->
 <div id="modal-launch" class="modal hidden">
   <div class="modal-box wide">
     <div class="flex justify-between items-center mb-1">
-      <h3 class="font-extrabold text-lg">🧠 Analyse du script</h3>
-      <button onclick="closeModal('modal-launch')" class="mini-btn">✕</button>
+      <h3 class="font-extrabold text-lg">Analyse et lancement</h3>
+      <button onclick="closeModal('modal-launch')" class="mini-btn">Fermer</button>
     </div>
     <p id="launch-sub" class="text-sm text-slate-400 mb-4"></p>
     <div id="launch-body"></div>
   </div>
 </div>
 
-<!-- ============ MODALE PARAMÈTRES ============ -->
+<!-- ============ MODALE PARAMETRES ============ -->
 <div id="modal-settings" class="modal hidden">
   <div class="modal-box small">
-    <h3 class="font-bold text-lg mb-4">⚙️ Changer le code secret</h3>
+    <h3 class="font-bold text-lg mb-4">Changer le code secret</h3>
     <label class="label">Code actuel</label>
     <input id="set-current" type="password" class="input mb-3">
-    <label class="label">Nouveau code (min. 6 caractères)</label>
+    <label class="label">Nouveau code (min. 6 caracteres)</label>
     <input id="set-new" type="password" class="input mb-4">
     <div id="set-msg" class="text-sm mb-3"></div>
     <div class="flex gap-2 justify-end">
@@ -323,7 +384,7 @@ print("Signal reçu :", data)</pre>
   </div>
 </div>
 
-<div id="drop-overlay" class="hidden">📥 Dépose ton fichier .py pour l'ajouter</div>
+<div id="drop-overlay" class="hidden">Deposez votre fichier pour l'ajouter</div>
 <div id="toast" class="hidden"></div>
 {% endblock %}
 {% block scripts %}

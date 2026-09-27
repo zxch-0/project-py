@@ -1,69 +1,83 @@
-# PyRunner 🐍 — Exécute tes scripts Python depuis un site privé (Render)
+# zach-runner — Executez vos scripts et projets depuis un site prive (Render)
 
-Console web **privée** qui permet de :
+Console web **privee** pour executer des scripts et projets complets sur un serveur :
 
-- ⬆️ **Uploader n'importe quel script `.py`** (ou le créer depuis un modèle) et l'exécuter sur le serveur
-- 🧠 **Scanner intelligemment le script** : questions `input()`, menus `1, 2, 3`, librairies manquantes, risques
-- 💬 **Remplir les réponses petit à petit** avant le lancement (boutons de choix cliquables), ou **répondre en direct** dans la console interactive
-- ▶️ Laisser tourner **même si tu fermes la fenêtre** (exécution détachée + logs persistants)
-- 📟 **Console parfaite** : horodatage, couleurs par niveau, recherche, filtres, téléchargement
-- 🩺 **Diagnostic auto des crashs** : cause en français + bouton « Installer » si librairie manquante
-- 🔐 Accès protégé par un **code secret défini à la première visite**
-- 🔔 **Webhook inbound** journalisé (date/heure, IP, contenu…) + déclenchement auto d'un script
+- **Upload de fichiers** (`.py`, `.js`, `.mjs`, `.cjs`, `.sh`) ou de **projets complets**
+  (`.zip`, `.tar.gz`, `.rar`, `.7z`, multi-fichiers avec dependances)
+- **Analyse intelligente** : questions detectees, menus a choix, librairies manquantes, risques
+- **Reponses guidees** : formulaire avant lancement (boutons de choix cliquables),
+  puis console interactive pour repondre en direct
+- **Execution persistante** : le run continue meme si vous fermez la fenetre
+- **Console structuree** : horodatage, niveaux, recherche, filtres, telechargement
+- **Diagnostic de crash** : cause en francais + action corrective (installation pip/npm)
+- **Runtimes** : Python, Node.js, Shell, ou commande personnalisee (php, ruby, deno...)
+- **Webhook entrant** journalise (date, IP, contenu) + declenchement auto d'un script
+- **Acces protege** par code secret defini a la premiere visite
 
-## 🚀 Déploiement sur Render (Blueprint)
+## Deploiement sur Render (Blueprint)
 
-1. **Push ce dossier sur GitHub** (repo privé conseillé).
-2. Sur [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint** → choisis ton repo.
-3. Render détecte `render.yaml` → **Apply**.
-4. Attends ~2-3 min → ouvre l'URL → 🎉 **définis ton code secret** (1re visite).
+1. Poussez ce dossier sur GitHub (depot prive recommande).
+2. Sur [dashboard.render.com](https://dashboard.render.com) : **New → Blueprint**, choisissez le depot.
+3. Render detecte `render.yaml` : cliquez **Apply**.
+4. Attendez 2 a 5 minutes (le build installe aussi Node.js), ouvrez l'URL fournie.
+5. **Premiere visite : definissez votre code secret.** Le site est alors verrouille.
 
-> 💡 Le plan `starter` est volontaire : **disque persistant** + **pas de mise en veille** (le plan
-> gratuit couperait tes scripts après ~15 min d'inactivité).
+Le plan `starter` est volontaire : **disque persistant** (fichiers, logs, code secret conserves)
+et **pas de mise en veille** (le plan gratuit interromprait vos scripts apres environ 15 minutes
+d'inactivite).
 
 ### Variable optionnelle
 
 | Variable | Effet |
 |---|---|
-| `SECRET_CODE` | Force le code d'accès (sinon défini à la 1re visite). |
+| `SECRET_CODE` | Force le code d'acces (sinon defini a la 1re visite). A definir dans Render → Environment. |
 
-## 🖥️ Utilisation
+## Utilisation
 
-### Lancer un script interactif
+### Lancer un fichier ou un projet
 
-1. **＋ Nouveau script** → upload ton `.py` (ex : `exemple_interactif.py` pour tester).
-2. Le site le **scanne** 🧠 et affiche :
-   - les **questions** détectées (`"URL webhook : "`, `"Ton choix (1-3) : "`…),
-   - les **menus** avec boutons cliquables (`1`, `2`, `3`),
-   - les **librairies** à installer, les avertissements éventuels.
-3. Tu **remplis les réponses** → **Démarrer** : elles sont envoyées automatiquement au fil des questions.
-4. S'il reste des questions (ou pour les scripts imprévisibles), la **console interactive** affiche
-   `💬 Le script attend ta réponse` : tu réponds en direct, même avec des boutons de choix.
-5. Au **redémarrage** (manuel ou via webhook), tes dernières réponses sont **rejouées automatiquement**.
+1. **Nouveau script** : onglet **Fichier** (un script seul), **Archive projet** (`.zip`, `.tar.gz`,
+   `.rar`, `.7z`) ou **Creer** (depuis un modele Python, Node.js ou Shell).
+2. Le site **analyse** le code : questions (`input`, `read -p`, `question`), menus
+   (`1 - Demarrer / 2 - Quitter`, `[o/n]`, `(1-3)`...), dependances, avertissements.
+3. Pour un projet : choisissez le **point d'entree** parmi les candidats detectes, verifiez le
+   **runtime** (auto-detecte, modifiable), installez les dependances (`requirements.txt` via pip,
+   `package.json` via npm).
+4. **Remplissez les reponses** : elles sont envoyees automatiquement au fil des questions.
+   S'il reste une question, la console affiche une zone de reponse (avec boutons de choix).
+5. Au **redemarrage** (manuel ou via webhook), vos dernieres reponses sont **rejouees**.
 
-### Console & diagnostic
+### Console et diagnostic
 
-- Chaque ligne est **horodatée**, colorée selon son niveau (info / succès / alerte / erreur).
-- **Recherche**, **filtre par niveau**, pause, suivi du direct, téléchargement.
-- En cas de crash : bannière **🩺 Diagnostic** (exception, fichier, ligne, explication FR) + action
-  corrective (ex : `📦 Installer requests puis relancer`).
-- La **syntaxe est vérifiée avant chaque lancement** : zéro démarrage voué à l'échec.
+- Chaque ligne est **horodatee** et coloree selon son niveau (info, succes, alerte, erreur).
+- **Recherche**, **filtre par niveau**, pause, suivi du direct, telechargement des logs.
+- En cas d'echec : banniere de **diagnostic** (exception, fichier, ligne, explication)
+  avec action corrective (ex : installer le paquet manquant puis relancer).
+- La **syntaxe est verifiee avant chaque lancement** (Python, Node.js, Shell).
 
 ### Webhook
 
-1. Onglet **🔔 Webhooks** → copie ton **URL privée**.
-2. Chaque appel est journalisé : **🕒 date/heure, 🌐 IP, méthode, query, headers, corps JSON/texte**,
-   avec recherche, filtre par méthode et graphique 24h.
-3. (Optionnel) **Déclencher un script à chaque appel** : les données arrivent via `WEBHOOK_PAYLOAD`
-   et tes réponses mémorisées sont rejouées.
+1. Onglet **Webhooks** : copiez votre **URL privee** (`/webhook/<token>`).
+2. Chaque appel est journalise : **date/heure, IP, methode, query, headers, corps JSON/texte**,
+   avec recherche, filtre par methode et graphique 24h.
+3. Optionnel : **declencher un script a chaque appel**. Les donnees arrivent via la variable
+   `WEBHOOK_PAYLOAD` et vos reponses memorisees sont rejouees :
 
 ```python
 import os, json
 data = json.loads(os.environ.get("WEBHOOK_PAYLOAD", "{}"))
-print("Signal reçu :", data)
+print("Signal recu :", data)
 ```
 
-## 💻 Lancer en local
+Test rapide :
+
+```bash
+curl -X POST "https://VOTRE-APP.onrender.com/webhook/VOTRE-TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"signal":"BUY","prix":123.4}'
+```
+
+## Lancer en local
 
 ```bash
 pip install -r requirements.txt
@@ -71,23 +85,35 @@ python app.py
 # → http://localhost:5000
 ```
 
-## 🗂️ Structure
+Lancer les tests :
+
+```bash
+python -m pytest tests/ -q
+```
+
+## Structure
 
 ```
 ├── app.py                 # serveur Flask (auth, API, webhooks)
-├── analyzer.py            # scan statique (questions, menus, imports) + diagnostic crash
-├── runner.py              # exécution interactive (stdin, détection d'attente, logs structurés)
-├── templates/             # setup, login, dashboard (SPA)
-├── static/                # style.css, app.js
-├── render.yaml            # Blueprint Render (web service + disque persistant)
+├── analyzer.py            # analyse statique (Python/Node/Shell) + diagnostic
+├── runner.py              # execution interactive (stdin, logs structures)
+├── runtimes.py            # detection et resolution des runtimes
+├── projects.py            # extraction et analyse d'archives
+├── render_build.sh        # build Render (pip + Node.js vendored)
+├── render.yaml            # Blueprint Render (service + disque persistant)
 ├── requirements.txt
-├── exemple_interactif.py  # démo : menus + questions (à uploader pour tester)
-├── exemple_bot.py         # modèle de bot webhook en continu
-└── data/                  # stockage persistant (disque Render, ignoré par Git)
+├── templates/             # setup, login, dashboard
+├── static/                # style.css, app.js
+├── tests/                 # suite de tests (pytest)
+├── exemple_interactif.py  # demo : menus + questions (a uploader pour tester)
+├── exemple_bot.py         # modele de bot webhook en continu
+└── data/                  # stockage persistant (disque Render, ignore par Git)
 ```
 
-## ⚠️ Notes
+## Notes
 
-- Après un **redéploiement Render**, relance tes scripts (ou déclenche-les via webhook).
-- Un seul worker gunicorn : voulu, pour garder le pilotage des process fiable.
-- Garde ton **URL webhook** et ton **code secret** pour toi.
+- Apres un **redeploiement Render**, relancez vos scripts (ou declenchez-les via webhook).
+- Un seul worker gunicorn : voulu, pour un pilotage fiable des processus.
+- Formats d'archive : `.zip` et `.tar.gz` toujours supportes ; `.rar` necessite l'outil
+  systeme `unrar` (sinon convertissez en `.zip`), `.7z` est gere en pur Python.
+- Gardez votre **URL webhook** et votre **code secret** pour vous.

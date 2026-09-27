@@ -1,15 +1,15 @@
-# Blueprint Render — PyRunner
-# Déploiement : dashboard Render → New → Blueprint → choisir ce repo.
+# Blueprint Render — zach-runner
+# Deploiement : dashboard Render → New → Blueprint → choisir ce repo.
 # Doc : https://render.com/docs/blueprint-spec
 services:
   - type: web
-    name: pyrunner
+    name: zach-runner
     runtime: python
-    plan: starter          # requis pour le disque persistant + pas de mise en veille (24/7)
-    buildCommand: pip install -r requirements.txt
+    plan: starter          # disque persistant + pas de mise en veille (24/7)
+    buildCommand: ./render_build.sh
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
     disk:
-      name: pyrunner-data
+      name: zach-runner-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1
     envVars:
@@ -19,7 +19,7 @@ services:
         value: /opt/render/project/src/data
       - key: FLASK_SECRET_KEY
         generateValue: true
-      # Optionnel : force le code d'accès (sinon défini à la 1re visite du site).
+      # Optionnel : force le code d'acces (sinon defini a la 1re visite).
       # - key: SECRET_CODE
       #   sync: false
     healthCheckPath: /api/health

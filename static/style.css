@@ -219,7 +219,7 @@ textarea.input { resize: vertical; }
 .tline.lvl-error { background: rgba(248,113,113,.06); } .tline.lvl-error .ttext { color: #fca5a5; }
 .tline.t-in { background: rgba(99,102,241,.09); border-left: 2px solid var(--acc1); padding-left: .6rem; }
 .tline.t-in .ttext { color: #c7d2fe; }
-.tline.t-in .ttext::before { content: "❯ "; color: var(--acc2); font-weight: 700; }
+.tline.t-in .ttext::before { content: "> "; color: var(--acc2); font-weight: 700; }
 .tline.t-sys .ttext { color: #8b94ad; font-style: italic; }
 .tline.mark { background: rgba(251,191,36,.12); }
 .t-empty { color: #3d4763; text-align: center; padding-top: 3rem; font-style: italic; }
@@ -300,3 +300,36 @@ textarea.input { resize: vertical; }
   .terminal { height: 380px; }
   .tpl-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------- v3 : icones SVG, projets, divers ---------- */
+.nav-svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn-svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+.mini-btn { display: inline-flex; align-items: center; gap: .4rem; }
+.pill-dot { width: 7px; height: 7px; border-radius: 99px; background: currentColor; display: inline-block; }
+.dz-title { font-weight: 800; font-size: 1.02rem; margin-bottom: .25rem; }
+.empty-title { font-weight: 700; color: var(--txt); font-size: 1rem; margin-bottom: .4rem; }
+.step { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: .9rem; padding: 1rem 1.1rem; margin-bottom: .9rem; }
+.step-title { font-weight: 800; font-size: .85rem; margin-bottom: .7rem; color: #c7d2fe; text-transform: uppercase; letter-spacing: .05em; }
+.input-static { display: flex; align-items: center; color: var(--mut); }
+.tag { font-size: .68rem; font-weight: 700; background: rgba(99,102,241,.14); border: 1px solid rgba(99,102,241,.35); color: #c7d2fe; border-radius: 99px; padding: .15rem .6rem; }
+.tag-rt { background: rgba(34,211,238,.1); border-color: rgba(34,211,238,.35); color: #a5f3fc; }
+.sc-tags { display: flex; gap: .4rem; margin-bottom: .5rem; }
+.rt-row { display: flex; align-items: center; gap: .6rem; padding: .5rem .2rem; border-bottom: 1px dashed rgba(255,255,255,.06); font-size: .85rem; }
+.rt-row:last-child { border: none; }
+.act-ico { color: #7d87a3; flex-shrink: 0; margin-top: 2px; }
+.file-tree { background: rgba(0,0,0,.3); border: 1px solid var(--line); border-radius: .7rem; max-height: 220px; overflow: auto; padding: .3rem; }
+.tree-head { font-size: .72rem; color: var(--mut); padding: .3rem .5rem; font-weight: 600; }
+.tree-row { display: flex; align-items: center; gap: .5rem; padding: .32rem .5rem; border-radius: .5rem; cursor: pointer; font-size: .78rem; font-family: var(--mono); color: #b9c1d4; white-space: nowrap; overflow: hidden; }
+.tree-row:hover { background: rgba(99,102,241,.12); }
+.tree-row.active { background: rgba(99,102,241,.22); color: #fff; }
+.tree-row:not(.runnable) { opacity: .55; }
+.tree-name { overflow: hidden; text-overflow: ellipsis; }
+.tree-entry { margin-left: auto; font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; background: rgba(52,211,153,.15); color: var(--ok); border: 1px solid rgba(52,211,153,.4); border-radius: 99px; padding: .1rem .5rem; font-family: "Inter", sans-serif; flex-shrink: 0; }
+.tree-ico { color: #5b6480; flex-shrink: 0; }
+.run-item { border-left: 3px solid var(--mut); }
+.run-ok { border-left-color: var(--ok); }
+.run-err { border-left-color: var(--err); }
+.run-stop { border-left-color: var(--warn); }
+.tpl-ico { font-size: .72rem !important; font-weight: 900; font-family: var(--mono); background: rgba(99,102,241,.2); border: 1px solid rgba(99,102,241,.4); border-radius: .45rem; padding: .25rem .5rem; }
+.wait-ico { width: 9px; height: 9px; border-radius: 99px; background: var(--warn); box-shadow: 0 0 10px var(--warn); flex-shrink: 0; align-self: center; animation: pulse 1.2s infinite; }
+.tpl-grid { grid-template-columns: repeat(3, 1fr); }
