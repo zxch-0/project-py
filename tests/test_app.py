@@ -336,6 +336,25 @@ def test_discord_send_and_logs(client, monkeypatch):
     c.delete("/api/discord/logs")
 
 
+def test_discord_test_reports_cause(client, monkeypatch):
+    c = client
+    c.put("/api/discord/config",
+          json={"webhook_url": "https://discord.com/api/webhooks/1/t",
+                "enabled": True})
+    import app as appmod
+    monkeypatch.setattr(appmod, "_discord_post",
+                        lambda url, text: (False, "SSL bidon (EOF)"))
+    r = c.post("/api/discord/test")
+    assert r.status_code == 502
+    err = r.get_json()["error"]
+    assert "SSL bidon" in err and "bloquee" in err
+    monkeypatch.setattr(appmod, "_discord_post",
+                        lambda url, text: (False, "Discord a repondu HTTP 404"))
+    r = c.post("/api/discord/test")
+    assert "HTTP 404" in r.get_json()["error"]
+    c.put("/api/discord/config", json={"enabled": False})
+
+
 def test_discord_run_notifications(client, monkeypatch):
     c = client
 

@@ -1400,11 +1400,17 @@ def api_discord_test():
     url = cfg.get("webhook_url", "")
     if not url:
         return jsonify({"ok": False, "error": "Aucune URL Discord configuree"}), 400
-    ok = _discord_send_and_log("test", "—",
-        "\u2705 Test zach-runner : les notifications Discord fonctionnent.", None, url)
+    text = "\u2705 Test zach-runner : les notifications Discord fonctionnent."
+    ok, err = _discord_post(url, text)
+    append_discord_log({"time": utcnow_iso(), "event": "test",
+                        "script_id": None, "script_name": "—",
+                        "text": text, "ok": ok, "error": err})
     if not ok:
-        return jsonify({"ok": False, "error":
-                        "Envoi impossible — verifiez l'URL dans Discord"}), 502
+        detail = err or "erreur reseau"
+        if "SSL" in detail or "TLS" in detail or "EOF" in detail:
+            detail += (" — la connexion sortante vers Discord semble bloquee "
+                       "par le reseau (pare-feu / proxy)")
+        return jsonify({"ok": False, "error": f"Envoi impossible : {detail}"}), 502
     return jsonify({"ok": True})
 
 @app.route("/api/discord/logs")
