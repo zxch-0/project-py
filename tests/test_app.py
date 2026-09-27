@@ -8,7 +8,6 @@ import zipfile
 
 DATA_TMP = tempfile.mkdtemp(prefix="zr-test-")
 os.environ["DATA_DIR"] = DATA_TMP
-os.environ["FLASK_SECRET_KEY"] = "test-secret-key"
 
 import pytest  # noqa: E402
 
@@ -21,14 +20,6 @@ def client():
     appmod.app.config["TESTING"] = True
     with appmod.app.test_client() as c:
         yield c
-
-
-@pytest.fixture(scope="module")
-def authed(client):
-    r = client.post("/setup", data={"code": "code-test-123",
-                                    "confirm": "code-test-123"})
-    assert r.status_code in (302, 200)
-    return client
 
 
 def _upload_py(c, code, name="T1"):
@@ -69,21 +60,22 @@ def _console_text(console_json):
                      if l["type"] in ("out", "err"))
 
 
-# ---------------------------------------------------------- auth ---
+# ---------------------------------------------------------- sante ---
 
-def test_health_and_setup_flow(client):
+def test_health(client):
     r = client.get("/api/health")
-    assert r.get_json()["ok"] is True
-    # Deconnecte : API protegee
-    client.get("/logout")
-    r = client.get("/api/status")
-    assert r.status_code == 401
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["ok"] is True
+    # Acces direct : le dashboard et l'API sont ouverts
+    assert client.get("/").status_code == 200
+    assert client.get("/api/status").status_code == 200
 
 
 # ---------------------------------------------------------- cycle de vie ---
 
-def test_upload_analyze_prefill_run(authed):
-    c = authed
+def test_upload_analyze_prefill_run(client):
+    c = client
     code = ('print("1 - A")\nprint("2 - B")\n'
             'c = input("Choix (1-2) : ")\n'
             'n = input("Nom : ")\n'
@@ -104,8 +96,8 @@ def test_upload_analyze_prefill_run(authed):
     assert len(d["qa_history"]) == 2
 
 
-def test_interactive_waiting_then_input(authed):
-    c = authed
+def test_interactive_waiting_then_input(client):
+    c = client
     sid = _upload_py(c, 'r = input("Couleur ? ")\nprint(f"OK:{r}")\n', "Interactif")
     assert c.post(f"/api/scripts/{sid}/run", json={}).get_json()["ok"] is True
     # Attendre la detection d'attente
@@ -122,8 +114,8 @@ def test_interactive_waiting_then_input(authed):
     assert "OK:bleu" in _console_text(fin)
 
 
-def test_crash_diagnosis(authed):
-    c = authed
+def test_crash_diagnosis(client):
+    c = client
     sid = _upload_py(c, "import module_absent_zr_xyz\n", "Crash")
     r = c.post(f"/api/scripts/{sid}/run", json={})
     assert r.get_json()["ok"] is False  # echec immediat
@@ -134,16 +126,16 @@ def test_crash_diagnosis(authed):
     assert dg["action"]["package"] == "module_absent_zr_xyz"
 
 
-def test_syntax_refused(authed):
-    c = authed
+def test_syntax_refused(client):
+    c = client
     sid = _upload_py(c, 'print("x"\n', "Syntax")
     r = c.post(f"/api/scripts/{sid}/run", json={})
     assert r.get_json()["ok"] is False
     assert "syntaxe" in r.get_json()["message"].lower()
 
 
-def test_stop_long_running(authed):
-    c = authed
+def test_stop_long_running(client):
+    c = client
     sid = _upload_py(c, "import time\nprint('go')\ntime.sleep(120)\n", "Long")
     assert c.post(f"/api/scripts/{sid}/run", json={}).get_json()["ok"] is True
     time.sleep(2)
@@ -154,8 +146,8 @@ def test_stop_long_running(authed):
     assert d["runs"][0]["reason"] == "stopped"
 
 
-def test_file_edit_and_traversal(authed):
-    c = authed
+def test_file_edit_and_traversal(client):
+    c = client
     sid = _upload_py(c, "print('v1')\n", "Edit")
     r = c.put(f"/api/scripts/{sid}/file",
               json={"path": "ignored.py", "content": "print('v2')\n"})
@@ -182,8 +174,8 @@ def _make_project_zip():
     return buf
 
 
-def test_archive_upload_scan_run(authed):
-    c = authed
+def test_archive_upload_scan_run(client):
+    c = client
     data = {"file": (_make_project_zip(), "proj.zip"), "name": "ProjZip"}
     r = c.post("/api/scripts/upload-archive", data=data,
                content_type="multipart/form-data")
@@ -215,8 +207,8 @@ def test_archive_upload_scan_run(authed):
     assert r.get_json()["ok"] is False
 
 
-def test_entry_switch(authed):
-    c = authed
+def test_entry_switch(client):
+    c = client
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("a.py", "print('A')\n")
@@ -237,10 +229,10 @@ def test_entry_switch(authed):
 
 # ---------------------------------------------------------- runtimes ---
 
-def test_shell_script(authed):
+def test_shell_script(client):
     if not bash_bin():
         pytest.skip("bash absent")
-    c = authed
+    c = client
     code = 'echo "1 - Oui"\necho "2 - Non"\nread -p "Choix : " c\necho "R:$c"\n'
     data = {"file": (io.BytesIO(code.encode()), "s.sh"), "name": "Shell"}
     sid = c.post("/api/scripts/upload", data=data,
@@ -253,10 +245,10 @@ def test_shell_script(authed):
     assert "R:1" in _console_text(fin)
 
 
-def test_node_script(authed):
+def test_node_script(client):
     if not node_bin():
         pytest.skip("node absent")
-    c = authed
+    c = client
     code = ("import readline from 'readline';\n"
             "const rl = readline.createInterface({input: process.stdin, output: process.stdout});\n"
             "const n = await new Promise(r => rl.question('Nombre : ', r));\n"
@@ -269,8 +261,8 @@ def test_node_script(authed):
     assert "N:7" in _console_text(fin)
 
 
-def test_custom_runtime(authed):
-    c = authed
+def test_custom_runtime(client):
+    c = client
     sid = _upload_py(c, "print('CUSTOM_OK')\n", "Custom")
     c.put(f"/api/scripts/{sid}",
           json={"runtime": "custom", "custom_cmd": "python3 -u"})
@@ -284,8 +276,8 @@ def test_custom_runtime(authed):
 
 # ---------------------------------------------------------- webhooks ---
 
-def test_webhook_flow(authed):
-    c = authed
+def test_webhook_flow(client):
+    c = client
     cfg = c.get("/api/webhooks/config").get_json()["config"]
     path = "/" + "/".join(cfg["url"].split("/")[3:])
     r = c.post(path, json={"signal": "BUY", "x": 1})
@@ -297,8 +289,8 @@ def test_webhook_flow(authed):
     assert r.status_code == 404
 
 
-def test_webhook_autorun(authed):
-    c = authed
+def test_webhook_autorun(client):
+    c = client
     sid = _upload_py(c, "import os\nprint('P:' + os.environ.get('WEBHOOK_PAYLOAD', '{}'))\n", "WH")
     c.put("/api/webhooks/config",
           json={"linked_script_id": sid, "auto_run": True})
@@ -312,8 +304,8 @@ def test_webhook_autorun(authed):
 
 # ---------------------------------------------------------- divers ---
 
-def test_overview_and_runtimes(authed):
-    c = authed
+def test_overview_and_runtimes(client):
+    c = client
     d = c.get("/api/overview").get_json()
     assert d["ok"] is True
     assert d["stats"]["scripts_total"] >= 1
@@ -322,14 +314,9 @@ def test_overview_and_runtimes(authed):
     assert r["archives"]["zip"] is True
 
 
-def test_change_code(authed):
-    c = authed
-    r = c.post("/api/change-code",
-               json={"current": "code-test-123", "new": "nouveau-code-456"})
-    assert r.get_json()["ok"] is True
-    c.get("/logout")
-    r = c.post("/login", data={"code": "nouveau-code-456"})
-    assert r.status_code in (302, 200)
-    # Restaure pour la suite eventuelle
-    c.post("/api/change-code",
-           json={"current": "nouveau-code-456", "new": "code-test-123"})
+def test_no_auth_routes(client):
+    # Le systeme de login est supprime : acces direct partout
+    assert client.get("/").status_code == 200
+    assert client.get("/login").status_code == 302  # 404 -> redirige vers /
+    assert client.get("/setup").status_code == 302
+    assert client.post("/api/change-code", json={}).status_code == 404

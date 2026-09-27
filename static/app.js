@@ -81,7 +81,6 @@ function fmtSize(b) {
 async function api(url, opts) {
   opts = opts || {};
   const r = await fetch(url, opts);
-  if (r.status === 401) { location.href = '/login'; throw new Error('Session expiree'); }
   const data = await r.json().catch(() => ({}));
   if (!data.ok && !opts.allowFail) throw new Error(data.error || data.message || 'Erreur serveur');
   return data;
@@ -905,17 +904,6 @@ async function clearWhLogs() {
   try { await api('/api/webhooks/logs', { method: 'DELETE' }); loadWhLogs(); } catch (e) { toast(e.message, false); }
 }
 
-/* ---------------- parametres ---------------- */
-function openSettings() { $('modal-settings').classList.remove('hidden'); }
-async function changeCode() {
-  const msg = $('set-msg');
-  try {
-    await api('/api/change-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: $('set-current').value, new: $('set-new').value }) });
-    msg.innerHTML = '<span class="text-emerald-300">Code mis a jour.</span>';
-    setTimeout(() => closeModal('modal-settings'), 1200);
-  } catch (e) { msg.innerHTML = `<span class="text-red-300">${esc(e.message)}</span>`; }
-}
-
 /* ---------------- refresh global ---------------- */
 function refresh() {
   if (VIEW === 'overview') loadOverview();
@@ -929,7 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindAll(); bindTpl();
   $('wait-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendWaitInput(); });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') ['modal-new', 'modal-launch', 'modal-settings'].forEach(closeModal);
+    if (e.key === 'Escape') ['modal-new', 'modal-launch'].forEach(closeModal);
   });
   showView('overview');
   setInterval(() => {

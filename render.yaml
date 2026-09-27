@@ -17,9 +17,4 @@ services:
         value: 3.11.9
       - key: DATA_DIR
         value: /opt/render/project/src/data
-      - key: FLASK_SECRET_KEY
-        generateValue: true
-      # Optionnel : force le code d'acces (sinon defini a la 1re visite).
-      # - key: SECRET_CODE
-      #   sync: false
     healthCheckPath: /api/health

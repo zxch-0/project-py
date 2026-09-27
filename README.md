@@ -12,7 +12,6 @@ Console web **privee** pour executer des scripts et projets complets sur un serv
 - **Diagnostic de crash** : cause en francais + action corrective (installation pip/npm)
 - **Runtimes** : Python, Node.js, Shell, ou commande personnalisee (php, ruby, deno...)
 - **Webhook entrant** journalise (date, IP, contenu) + declenchement auto d'un script
-- **Acces protege** par code secret defini a la premiere visite
 
 ## Deploiement sur Render (Blueprint)
 
@@ -20,9 +19,8 @@ Console web **privee** pour executer des scripts et projets complets sur un serv
 2. Sur [dashboard.render.com](https://dashboard.render.com) : **New → Blueprint**, choisissez le depot.
 3. Render detecte `render.yaml` : cliquez **Apply**.
 4. Attendez 2 a 5 minutes (le build installe aussi Node.js), ouvrez l'URL fournie.
-5. **Premiere visite : definissez votre code secret.** Le site est alors verrouille.
 
-Le plan `starter` est volontaire : **disque persistant** (fichiers, logs, code secret conserves)
+Le plan `starter` est volontaire : **disque persistant** (fichiers et logs conserves)
 et **pas de mise en veille** (le plan gratuit interromprait vos scripts apres environ 15 minutes
 d'inactivite).
 
@@ -30,7 +28,6 @@ d'inactivite).
 
 | Variable | Effet |
 |---|---|
-| `SECRET_CODE` | Force le code d'acces (sinon defini a la 1re visite). A definir dans Render → Environment. |
 
 ## Utilisation
 
@@ -94,7 +91,7 @@ python -m pytest tests/ -q
 ## Structure
 
 ```
-├── app.py                 # serveur Flask (auth, API, webhooks)
+├── app.py                 # serveur Flask (API, webhooks)
 ├── analyzer.py            # analyse statique (Python/Node/Shell) + diagnostic
 ├── runner.py              # execution interactive (stdin, logs structures)
 ├── runtimes.py            # detection et resolution des runtimes
@@ -102,7 +99,7 @@ python -m pytest tests/ -q
 ├── render_build.sh        # build Render (pip + Node.js vendored)
 ├── render.yaml            # Blueprint Render (service + disque persistant)
 ├── requirements.txt
-├── templates/             # setup, login, dashboard
+├── templates/             # dashboard
 ├── static/                # style.css, app.js
 ├── tests/                 # suite de tests (pytest)
 ├── exemple_interactif.py  # demo : menus + questions (a uploader pour tester)
@@ -117,4 +114,4 @@ python -m pytest tests/ -q
 - Formats d'archive : `.zip`, `.tar.gz` et `.7z` (pur Python) toujours supportes ;
   `.rar` fonctionne des qu'un outil `unrar`/`unar`/`bsdtar` est present — le build
   Render l'installe automatiquement (vendored, sans compilation).
-- Gardez votre **URL webhook** et votre **code secret** pour vous.
+- Gardez votre **URL webhook** et l'URL du site pour vous (acces direct, sans compte).

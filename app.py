@@ -5,7 +5,7 @@ zach-runner — Console privee pour executer des projets et scripts sur Render.
 - Analyse intelligente : questions, menus a choix, dependances, risques
 - Console interactive : reponses pre-remplies + reponses en direct (stdin)
 - Logs structures, diagnostic de crash, webhooks avec historique detaille
-- Acces protege par code secret defini a la premiere visite
+- Acces direct, sans compte (console personnelle)
 """
 import json
 import os
@@ -16,14 +16,12 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
-from functools import wraps
 from pathlib import Path
 
 from flask import (
     Flask, jsonify, redirect, render_template, request,
-    send_file, session, url_for
+    send_file, url_for
 )
-from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_file
@@ -52,8 +50,6 @@ if (_VENDOR_BIN / "unrar").exists():
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
 SCRIPTS_ROOT = DATA_DIR / "scripts"
 
-AUTH_FILE = DATA_DIR / "auth.json"
-APP_SECRET_FILE = DATA_DIR / "app_secret.key"
 SCRIPTS_META_FILE = DATA_DIR / "scripts.json"
 WEBHOOK_CONFIG_FILE = DATA_DIR / "webhook.json"
 WEBHOOK_LOGS_FILE = DATA_DIR / "webhook_logs.jsonl"
@@ -73,36 +69,7 @@ META_LOCK = threading.Lock()
 
 app = Flask(__name__)
 
-def _get_or_create_app_secret() -> str:
-    env_key = os.environ.get("FLASK_SECRET_KEY")
-    if env_key:
-        return env_key
-    if APP_SECRET_FILE.exists():
-        try:
-            return APP_SECRET_FILE.read_text().strip()
-        except OSError:
-            pass
-    new_key = secrets.token_hex(32)
-    try:
-        APP_SECRET_FILE.write_text(new_key)
-    except OSError:
-        pass
-    return new_key
-
-app.secret_key = _get_or_create_app_secret()
 app.config["MAX_CONTENT_LENGTH"] = (MAX_ARCHIVE_MB + 32) * 1024 * 1024
-app.permanent_session_lifetime = 60 * 60 * 24 * 30
-# Cookie de session : doit survivre dans l'apercu integre (contexte tiers, HTTPS).
-# SameSite=None + Secure exige par les navigateurs ; Partitioned (CHIPS) pour les
-# navigateurs qui bloquent les cookies tiers. Production servie en HTTPS (Render).
-app.config.update(
-    SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_PARTITIONED=True,
-    SESSION_COOKIE_HTTPONLY=True,
-)
-
-ENV_SECRET_CODE = os.environ.get("SECRET_CODE", "").strip()
 BOOT_TIME = time.time()
 
 # ------------------------------------------------------------- helpers ---
@@ -151,41 +118,6 @@ def read_activity(limit: int = 30) -> list:
         except Exception:
             continue
     return out
-
-# --- auth ---
-
-def is_setup_done() -> bool:
-    if ENV_SECRET_CODE:
-        return True
-    auth = _read_json(AUTH_FILE, None)
-    return bool(auth and auth.get("password_hash"))
-
-def verify_code(code: str) -> bool:
-    if ENV_SECRET_CODE and code == ENV_SECRET_CODE:
-        return True
-    auth = _read_json(AUTH_FILE, None)
-    if not auth or not auth.get("password_hash"):
-        return False
-    try:
-        return check_password_hash(auth["password_hash"], code)
-    except Exception:
-        return False
-
-def set_code(code: str) -> None:
-    _write_json(AUTH_FILE, {
-        "password_hash": generate_password_hash(code),
-        "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
-    })
-
-def login_required(view):
-    @wraps(view)
-    def wrapper(*args, **kwargs):
-        if not session.get("authenticated"):
-            if request.path.startswith("/api/"):
-                return jsonify({"ok": False, "error": "Non authentifie"}), 401
-            return redirect(url_for("login", next=request.path))
-        return view(*args, **kwargs)
-    return wrapper
 
 # --- stockage scripts / projets ---
 
@@ -539,56 +471,8 @@ def archive_support() -> dict:
 
 # ------------------------------------------------------------ pages ---
 
-@app.route("/setup", methods=["GET", "POST"])
-def setup():
-    if is_setup_done():
-        return redirect(url_for("login"))
-    error = None
-    if request.method == "POST":
-        code = (request.form.get("code") or "").strip()
-        confirm = (request.form.get("confirm") or "").strip()
-        if len(code) < 6:
-            error = "Le code secret doit contenir au moins 6 caracteres."
-        elif code != confirm:
-            error = "Les deux codes ne correspondent pas."
-        else:
-            set_code(code)
-            session.permanent = True
-            session["authenticated"] = True
-            log_activity("lock", "Console securisee avec un code secret")
-            return redirect(url_for("dashboard"))
-    return render_template("setup.html", error=error)
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if not is_setup_done():
-        return redirect(url_for("setup"))
-    if session.get("authenticated"):
-        return redirect(url_for("dashboard"))
-    error = None
-    if request.method == "POST":
-        code = (request.form.get("code") or "").strip()
-        if verify_code(code):
-            session.permanent = True
-            session["authenticated"] = True
-            nxt = request.args.get("next") or url_for("dashboard")
-            if not nxt.startswith("/"):
-                nxt = url_for("dashboard")
-            return redirect(nxt)
-        error = "Code incorrect."
-    return render_template("login.html", error=error)
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
 @app.route("/")
 def dashboard():
-    if not is_setup_done():
-        return redirect(url_for("setup"))
-    if not session.get("authenticated"):
-        return redirect(url_for("login"))
     cfg = load_webhook_config()
     webhook_url = url_for("webhook_receiver", token=cfg["token"], _external=True)
     return render_template("dashboard.html", webhook_url=webhook_url)
@@ -598,11 +482,9 @@ def dashboard():
 @app.route("/api/health")
 def api_health():
     return jsonify({"ok": True, "time": utcnow_iso(),
-                    "setup_done": is_setup_done(),
                     "uptime_s": int(time.time() - BOOT_TIME)})
 
 @app.route("/api/runtimes")
-@login_required
 def api_runtimes():
     return jsonify({"ok": True, "runtimes": all_runtimes_status(),
                     "archives": archive_support()})
@@ -633,7 +515,6 @@ def script_summary(m: dict) -> dict:
     }
 
 @app.route("/api/overview")
-@login_required
 def api_overview():
     with META_LOCK:
         meta = load_scripts_meta()
@@ -662,7 +543,6 @@ def api_overview():
     })
 
 @app.route("/api/status")
-@login_required
 def api_status():
     with META_LOCK:
         meta = load_scripts_meta()
@@ -767,7 +647,6 @@ def _parse_env_text(raw: str) -> dict:
     return env
 
 @app.route("/api/scripts/create", methods=["POST"])
-@login_required
 def api_create():
     data = request.get_json(force=True, silent=True) or {}
     tpl_key = str(data.get("template") or "py_blank")
@@ -791,7 +670,6 @@ def api_create():
                     "analysis": analyze_file(filename, code)})
 
 @app.route("/api/scripts/upload", methods=["POST"])
-@login_required
 def api_upload():
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "Aucun fichier recu"}), 400
@@ -858,7 +736,6 @@ def api_upload():
                     "analysis": analysis, "messages": messages})
 
 @app.route("/api/scripts/upload-archive", methods=["POST"])
-@login_required
 def api_upload_archive():
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "Aucun fichier recu"}), 400
@@ -921,7 +798,6 @@ def api_upload_archive():
 # ------------------------------------------------- projets : fichiers ---
 
 @app.route("/api/scripts/<script_id>/tree")
-@login_required
 def api_tree(script_id):
     with META_LOCK:
         m = load_scripts_meta().get(script_id)
@@ -939,7 +815,6 @@ def api_tree(script_id):
                     "runtime": effective_runtime(m)})
 
 @app.route("/api/scripts/<script_id>/entry", methods=["POST"])
-@login_required
 def api_set_entry(script_id):
     data = request.get_json(force=True, silent=True) or {}
     rel = (data.get("path") or "").strip()
@@ -964,7 +839,6 @@ def api_set_entry(script_id):
                     "runtime": effective_runtime(m), "analysis": analysis})
 
 @app.route("/api/scripts/<script_id>/file")
-@login_required
 def api_file_read(script_id):
     rel = (request.args.get("path") or "").strip()
     with META_LOCK:
@@ -993,7 +867,6 @@ def api_file_read(script_id):
                     "runtime": detect_runtime(target.name)})
 
 @app.route("/api/scripts/<script_id>/file", methods=["PUT"])
-@login_required
 def api_file_write(script_id):
     data = request.get_json(force=True, silent=True) or {}
     rel = (data.get("path") or "").strip()
@@ -1042,7 +915,6 @@ def api_file_write(script_id):
 # ------------------------------------------------- analyse ---
 
 @app.route("/api/scripts/<script_id>/analyze")
-@login_required
 def api_analyze(script_id):
     with META_LOCK:
         m = load_scripts_meta().get(script_id)
@@ -1059,7 +931,6 @@ def api_analyze(script_id):
 # ------------------------------------------------- detail / config ---
 
 @app.route("/api/scripts/<script_id>", methods=["GET"])
-@login_required
 def api_script_detail(script_id):
     with META_LOCK:
         meta = load_scripts_meta()
@@ -1094,7 +965,6 @@ def api_script_detail(script_id):
     return jsonify(out)
 
 @app.route("/api/scripts/<script_id>", methods=["PUT"])
-@login_required
 def api_script_update(script_id):
     with META_LOCK:
         meta = load_scripts_meta()
@@ -1138,7 +1008,6 @@ def api_script_update(script_id):
                     "runtime": effective_runtime(m)})
 
 @app.route("/api/scripts/<script_id>", methods=["DELETE"])
-@login_required
 def api_script_delete(script_id):
     with META_LOCK:
         meta = load_scripts_meta()
@@ -1182,7 +1051,6 @@ def package_json_dir(m: dict) -> Path | None:
 # ------------------------------------------------- execution ---
 
 @app.route("/api/scripts/<script_id>/run", methods=["POST"])
-@login_required
 def api_script_run(script_id):
     data = request.get_json(force=True, silent=True) or {}
     with META_LOCK:
@@ -1208,7 +1076,6 @@ def api_script_run(script_id):
     return jsonify({"ok": ok, "message": msg})
 
 @app.route("/api/scripts/<script_id>/stop", methods=["POST"])
-@login_required
 def api_script_stop(script_id):
     with META_LOCK:
         meta = load_scripts_meta()
@@ -1223,7 +1090,6 @@ def api_script_stop(script_id):
     return jsonify({"ok": ok, "message": msg})
 
 @app.route("/api/scripts/<script_id>/restart", methods=["POST"])
-@login_required
 def api_script_restart(script_id):
     data = request.get_json(force=True, silent=True) or {}
     with META_LOCK:
@@ -1245,7 +1111,6 @@ def api_script_restart(script_id):
     return jsonify({"ok": ok, "message": msg})
 
 @app.route("/api/scripts/<script_id>/input", methods=["POST"])
-@login_required
 def api_script_input(script_id):
     data = request.get_json(force=True, silent=True) or {}
     text = str(data.get("text", ""))
@@ -1270,7 +1135,6 @@ def api_script_input(script_id):
     return jsonify({"ok": ok, "message": msg})
 
 @app.route("/api/scripts/<script_id>/console")
-@login_required
 def api_console(script_id):
     try:
         since = max(0, int(request.args.get("since", 0)))
@@ -1388,19 +1252,16 @@ def npm_install_pkgs(script_id: str, package: str | None = None) -> tuple[bool, 
         return False, f"Erreur npm : {e}"
 
 @app.route("/api/scripts/<script_id>/install-deps", methods=["POST"])
-@login_required
 def api_script_install(script_id):
     ok, msg = pip_install(script_id)
     return jsonify({"ok": ok, "message": msg})
 
 @app.route("/api/scripts/<script_id>/npm-install", methods=["POST"])
-@login_required
 def api_script_npm_install(script_id):
     ok, msg = npm_install_pkgs(script_id)
     return jsonify({"ok": ok, "message": msg})
 
 @app.route("/api/scripts/<script_id>/fix-install", methods=["POST"])
-@login_required
 def api_fix_install(script_id):
     data = request.get_json(force=True, silent=True) or {}
     manager = str(data.get("manager") or "pip").strip().lower()
@@ -1436,7 +1297,6 @@ def api_fix_install(script_id):
 # ------------------------------------------------- logs ---
 
 @app.route("/api/scripts/<script_id>/logs/clear", methods=["POST"])
-@login_required
 def api_script_logs_clear(script_id):
     with META_LOCK:
         m = load_scripts_meta().get(script_id)
@@ -1456,7 +1316,6 @@ def api_script_logs_clear(script_id):
     return jsonify({"ok": True})
 
 @app.route("/api/scripts/<script_id>/logs/download")
-@login_required
 def api_script_logs_download(script_id):
     with META_LOCK:
         m = load_scripts_meta().get(script_id)
@@ -1544,14 +1403,12 @@ def webhook_receiver(token):
                     "message": action_msg or "Webhook recu et journalise"}), 200
 
 @app.route("/api/webhooks/logs")
-@login_required
 def api_webhook_logs():
     limit = max(1, min(int(request.args.get("limit", 100)), MAX_WEBHOOK_LOGS))
     return jsonify({"ok": True, "logs": read_webhook_logs(limit),
                     "stats": webhook_stats()})
 
 @app.route("/api/webhooks/logs", methods=["DELETE"])
-@login_required
 def api_webhook_logs_clear():
     try:
         if WEBHOOK_LOGS_FILE.exists():
@@ -1561,7 +1418,6 @@ def api_webhook_logs_clear():
     return jsonify({"ok": True})
 
 @app.route("/api/webhooks/config", methods=["GET"])
-@login_required
 def api_webhook_config():
     cfg = load_webhook_config()
     return jsonify({"ok": True, "config": {
@@ -1573,7 +1429,6 @@ def api_webhook_config():
         "created_at": cfg.get("created_at")}})
 
 @app.route("/api/webhooks/config", methods=["PUT"])
-@login_required
 def api_webhook_config_update():
     cfg = load_webhook_config()
     data = request.get_json(force=True, silent=True) or {}
@@ -1595,7 +1450,6 @@ def api_webhook_config_update():
     return jsonify({"ok": True})
 
 @app.route("/api/webhooks/regenerate", methods=["POST"])
-@login_required
 def api_webhook_regenerate():
     cfg = load_webhook_config()
     cfg["token"] = secrets.token_urlsafe(24)
@@ -1605,7 +1459,6 @@ def api_webhook_regenerate():
     return jsonify({"ok": True, "url": url_for("webhook_receiver", token=cfg["token"], _external=True)})
 
 @app.route("/api/webhooks/test", methods=["POST"])
-@login_required
 def api_webhook_test():
     import requests as rq
     cfg = load_webhook_config()
@@ -1618,26 +1471,6 @@ def api_webhook_test():
                         "response": r.text[:2000]})
     except Exception as e:
         return jsonify({"ok": False, "error": f"Envoi impossible : {e}"}), 502
-
-# --- parametres ---
-
-@app.route("/api/change-code", methods=["POST"])
-@login_required
-def api_change_code():
-    if ENV_SECRET_CODE:
-        return jsonify({"ok": False, "error":
-                        "SECRET_CODE est defini par variable d'environnement — modifiez-le sur Render"}), 400
-    data = request.get_json(force=True, silent=True) or {}
-    current = (data.get("current") or "").strip()
-    new = (data.get("new") or "").strip()
-    if not verify_code(current):
-        return jsonify({"ok": False, "error": "Code actuel incorrect"}), 403
-    if len(new) < 6:
-        return jsonify({"ok": False, "error":
-                        "Le nouveau code doit contenir au moins 6 caracteres"}), 400
-    set_code(new)
-    log_activity("lock", "Code secret modifie")
-    return jsonify({"ok": True, "message": "Code secret mis a jour"})
 
 # ------------------------------------------------------- erreurs ---
 
