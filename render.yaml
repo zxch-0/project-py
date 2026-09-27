@@ -1,0 +1,20 @@
+# Blueprint Render — zach-runner
+# Deploiement : dashboard Render → New → Blueprint → choisir ce repo.
+# Doc : https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: zach-runner
+    runtime: python
+    plan: starter          # disque persistant + pas de mise en veille (24/7)
+    buildCommand: ./render_build.sh
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    disk:
+      name: zach-runner-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATA_DIR
+        value: /opt/render/project/src/data
+    healthCheckPath: /api/health

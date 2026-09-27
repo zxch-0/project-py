@@ -1,0 +1,12 @@
+# Donnees locales (persistees sur Render via le disque, jamais dans Git)
+data/*
+!data/.gitkeep
+# Node.js vendored (retelecharge a chaque build Render)
+vendor/
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+.env
+.DS_Store
