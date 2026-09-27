@@ -1,0 +1,9 @@
+# Données locales (persistées sur Render via le disque, jamais dans Git)
+data/*
+!data/.gitkeep
+*.pyc
+__pycache__/
+.venv/
+venv/
+.env
+.DS_Store

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}PyRunner{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: { ink: '#0b1020', panel: '#141b33', line: '#243056', accent: '#5b8cff' }
+}}};
+</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body class="min-h-screen text-slate-100">
+<div class="max-w-6xl mx-auto px-4 py-8">
+  <header class="flex items-center justify-between mb-8">
+    <a href="/" class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 grid place-items-center text-xl font-black">Py</div>
+      <div>
+        <div class="font-extrabold text-lg leading-tight">PyRunner</div>
+        <div class="text-xs text-slate-400">Console privée · scripts Python + webhooks</div>
+      </div>
+    </a>
+    {% block header_actions %}{% endblock %}
+  </header>
+  {% block content %}{% endblock %}
+  <footer class="mt-12 text-center text-xs text-slate-500">
+    PyRunner · accès privé protégé par code secret · les scripts tournent côté serveur même si tu fermes cette page.
+  </footer>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>
