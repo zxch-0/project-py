@@ -42,6 +42,13 @@ from runner import (
 # ---------------------------------------------------------------- config ---
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# Outils vendores par le build Render (vendor/bin) : visibles via PATH
+# pour rarfile (unrar) et tout sous-processus.
+_VENDOR_BIN = BASE_DIR / "vendor" / "bin"
+if (_VENDOR_BIN / "unrar").exists():
+    os.environ["PATH"] = str(_VENDOR_BIN) + os.pathsep + os.environ.get("PATH", "")
+
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
 SCRIPTS_ROOT = DATA_DIR / "scripts"
 

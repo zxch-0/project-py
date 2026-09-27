@@ -114,6 +114,7 @@ python -m pytest tests/ -q
 
 - Apres un **redeploiement Render**, relancez vos scripts (ou declenchez-les via webhook).
 - Un seul worker gunicorn : voulu, pour un pilotage fiable des processus.
-- Formats d'archive : `.zip` et `.tar.gz` toujours supportes ; `.rar` necessite l'outil
-  systeme `unrar` (sinon convertissez en `.zip`), `.7z` est gere en pur Python.
+- Formats d'archive : `.zip`, `.tar.gz` et `.7z` (pur Python) toujours supportes ;
+  `.rar` fonctionne des qu'un outil `unrar`/`unar`/`bsdtar` est present — le build
+  Render l'installe automatiquement (vendored, sans compilation).
 - Gardez votre **URL webhook** et votre **code secret** pour vous.
