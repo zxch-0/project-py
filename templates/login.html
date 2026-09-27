@@ -1,20 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Connexion · PyRunner{% endblock %}
-{% block content %}
-<div class="max-w-md mx-auto card p-8">
-  <div class="text-4xl mb-3">👋</div>
-  <h1 class="text-2xl font-extrabold mb-1">Zone privée</h1>
-  <p class="text-sm text-slate-400 mb-6">Entre ton code secret pour accéder à la console.</p>
-  {% if error %}
-  <div class="bg-red-500/15 border border-red-500/40 text-red-200 text-sm rounded-lg px-4 py-3 mb-4">{{ error }}</div>
-  {% endif %}
-  <form method="post" class="space-y-4">
-    <div>
-      <label class="label">Code secret</label>
-      <input type="password" name="code" required autofocus autocomplete="current-password"
-             class="input" placeholder="Ton code secret">
-    </div>
-    <button class="btn-primary w-full">Déverrouiller →</button>
-  </form>
+{% block body %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">Py</div>
+    <div class="text-4xl mb-3">👋</div>
+    <h1 class="text-2xl font-extrabold mb-1">Zone privée</h1>
+    <p class="text-sm text-slate-400 mb-6">Entre ton code secret pour accéder à la console.</p>
+    {% if error %}
+    <div class="bg-red-500/15 border border-red-500/40 text-red-200 text-sm rounded-lg px-4 py-3 mb-4">{{ error }}</div>
+    {% endif %}
+    <form method="post" class="space-y-4">
+      <div>
+        <label class="label">Code secret</label>
+        <input type="password" name="code" required autofocus autocomplete="current-password"
+               class="input" placeholder="Ton code secret">
+      </div>
+      <button class="btn-primary w-full">Déverrouiller →</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

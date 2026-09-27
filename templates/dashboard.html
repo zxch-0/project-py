@@ -1,215 +1,315 @@
 {% extends "base.html" %}
 {% block title %}Console · PyRunner{% endblock %}
-{% block header_actions %}
-<div class="flex items-center gap-2">
-  <span id="health-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400" title="Serveur OK"></span>
-  <button onclick="openSettings()" class="btn-ghost">⚙️ Code secret</button>
-  <a href="/logout" class="btn-ghost">🚪 Déconnexion</a>
-</div>
-{% endblock %}
-{% block content %}
-
-<!-- Onglets -->
-<div class="flex gap-2 mb-6 flex-wrap">
-  <button id="tab-btn-scripts" onclick="showTab('scripts')" class="tab-btn active">📜 Mes scripts</button>
-  <button id="tab-btn-webhook" onclick="showTab('webhook')" class="tab-btn">🔔 Webhook <span id="webhook-badge" class="hidden ml-1 text-[11px] bg-indigo-500/30 px-2 py-0.5 rounded-full"></span></button>
-  <button id="tab-btn-help" onclick="showTab('help')" class="tab-btn">❓ Aide</button>
-</div>
-
-<!-- ============ ONGLET SCRIPTS ============ -->
-<section id="tab-scripts">
-  <!-- Upload -->
-  <div class="card p-6 mb-6">
-    <h2 class="font-bold text-lg mb-1">⬆️ Ajouter un script depuis ton ordinateur</h2>
-    <p class="text-sm text-slate-400 mb-4">Fichier <code>.py</code> · exécuté côté serveur, <strong class="text-slate-200">il continue de tourner même si tu fermes cette fenêtre</strong>.</p>
-    <form id="upload-form" class="grid md:grid-cols-2 gap-4">
+{% block body %}
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-logo" onclick="showView('overview')">
+      <div class="logo-badge">Py</div>
       <div>
-        <label class="label">Fichier Python (.py) *</label>
-        <input type="file" name="file" id="file-input" accept=".py" required class="input file-input">
-        <div id="drop-hint" class="text-xs text-slate-500 mt-1">…ou glisse-dépose ton fichier n'importe où sur cette page 📥</div>
+        <div class="logo-name">PyRunner</div>
+        <div class="logo-sub">Console privée</div>
       </div>
+    </div>
+    <nav class="side-nav">
+      <button class="nav-item active" id="nav-overview" onclick="showView('overview')"><span class="nav-ico">🏠</span> Vue d'ensemble</button>
+      <button class="nav-item" id="nav-scripts" onclick="showView('scripts')"><span class="nav-ico">📜</span> Scripts <span class="nav-count" id="nav-scripts-count"></span></button>
+      <button class="nav-item" id="nav-webhooks" onclick="showView('webhooks')"><span class="nav-ico">🔔</span> Webhooks <span class="nav-count" id="nav-wh-count"></span></button>
+      <button class="nav-item" id="nav-help" onclick="showView('help')"><span class="nav-ico">❓</span> Aide</button>
+    </nav>
+    <div class="side-foot">
+      <button class="quick-add" onclick="openNewScript()">＋ Nouveau script</button>
+      <div class="side-status"><span id="health-dot" class="dot dot-ok pulse"></span><span id="health-txt">Serveur en ligne</span></div>
+      <div class="side-row">
+        <button onclick="openSettings()" class="mini-btn" title="Changer le code secret">⚙️</button>
+        <a href="/logout" class="mini-btn" title="Déconnexion">🚪</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="topbar">
+      <button class="burger" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
       <div>
-        <label class="label">Nom d'affichage</label>
-        <input type="text" name="name" class="input" placeholder="Ex : Bot trading (optionnel)">
+        <h1 id="page-title">Vue d'ensemble</h1>
+        <p id="page-sub">Tout ce qui se passe sur ton serveur, en un coup d'œil.</p>
       </div>
-      <div>
-        <label class="label">Arguments (optionnel)</label>
-        <input type="text" name="args" class="input font-mono text-sm" placeholder="Ex : --mode live --fast">
-      </div>
-      <div>
-        <label class="label">Variables d'environnement (optionnel)</label>
-        <textarea name="env_text" rows="2" class="input font-mono text-sm" placeholder="CLE_API=xxxx&#10;MODE=prod"></textarea>
-      </div>
-      <div class="md:col-span-2">
-        <label class="label">requirements.txt (optionnel — colle le contenu ou laisse vide)</label>
-        <textarea name="requirements_text" rows="2" class="input font-mono text-sm" placeholder="requests==2.32.3&#10;pandas"></textarea>
-      </div>
-      <div class="md:col-span-2 flex flex-wrap items-center gap-4">
-        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="install_deps" checked class="accent-indigo-500"> 📦 Installer les dépendances après l'upload</label>
-        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="autostart" checked class="accent-indigo-500"> ▶ Démarrer immédiatement</label>
-        <button type="submit" id="upload-btn" class="btn-primary ml-auto">Uploader & exécuter 🚀</button>
-      </div>
-    </form>
-    <div id="upload-msg" class="mt-3 text-sm"></div>
-  </div>
+      <div class="top-actions" id="top-actions"></div>
+    </header>
 
-  <!-- Liste scripts -->
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="font-bold text-lg">🖥️ Scripts <span id="scripts-count" class="text-sm text-slate-400"></span></h2>
-    <button onclick="refreshStatus()" class="btn-ghost text-sm">🔄 Actualiser</button>
-  </div>
-  <div id="scripts-list" class="space-y-4"></div>
-  <div id="scripts-empty" class="hidden card p-10 text-center text-slate-400">
-    <div class="text-4xl mb-2">📭</div>
-    Aucun script pour le moment.<br>Upload ton premier <code>.py</code> ci-dessus pour commencer.
-  </div>
+    <div class="content">
+      <!-- ===== VUE D'ENSEMBLE ===== -->
+      <section id="view-overview" class="view">
+        <div class="stat-grid" id="ov-stats"></div>
+        <div class="ov-grid">
+          <div class="card pad">
+            <div class="card-title">⚡ En ce moment <button class="link" onclick="showView('scripts')">tout voir →</button></div>
+            <div id="ov-running"></div>
+          </div>
+          <div class="card pad">
+            <div class="card-title">🧾 Activité récente</div>
+            <div id="ov-activity" class="activity"></div>
+          </div>
+        </div>
+        <div class="card pad">
+          <div class="card-title">🔔 Webhooks — dernières 24h <button class="link" onclick="showView('webhooks')">détails →</button></div>
+          <div id="ov-chart" class="hchart"></div>
+        </div>
+      </section>
 
-  <!-- Panneau détail -->
-  <div id="detail-panel" class="hidden fixed inset-0 z-40 overflow-y-auto" style="background:rgba(4,8,20,.75);backdrop-filter:blur(2px)">
-    <div class="max-w-4xl mx-auto my-8 card p-6">
-      <div class="flex items-start justify-between gap-4 mb-4">
-        <div>
-          <h3 id="detail-name" class="font-extrabold text-xl"></h3>
-          <div id="detail-meta" class="text-xs text-slate-400 font-mono"></div>
+      <!-- ===== SCRIPTS ===== -->
+      <section id="view-scripts" class="view hidden">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div class="text-sm text-slate-400" id="scripts-count"></div>
+          <div class="flex gap-2">
+            <button onclick="loadScripts()" class="btn-ghost text-sm">🔄 Actualiser</button>
+            <button onclick="openNewScript()" class="btn-primary text-sm">＋ Nouveau script</button>
+          </div>
         </div>
-        <button onclick="closeDetail()" class="btn-ghost">✕ Fermer</button>
-      </div>
-      <div id="detail-actions" class="flex flex-wrap gap-2 mb-4"></div>
-      <div class="grid md:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label class="label">Nom</label>
-          <input id="edit-name" class="input">
+        <div id="scripts-grid" class="scripts-grid"></div>
+        <div id="scripts-empty" class="hidden card pad text-center text-slate-400">
+          <div class="text-5xl mb-3">📭</div>
+          <div class="font-bold text-slate-200 mb-1">Aucun script pour le moment</div>
+          <p class="text-sm mb-4">Upload ton premier <code>.py</code> ou crée-en un depuis un modèle.<br>Le site détectera automatiquement ses questions et menus.</p>
+          <button onclick="openNewScript()" class="btn-primary text-sm">＋ Ajouter un script</button>
         </div>
-        <div>
-          <label class="label">Arguments</label>
-          <input id="edit-args" class="input font-mono text-sm">
-        </div>
-      </div>
-      <div class="mb-4">
-        <label class="label">Variables d'environnement (CLE=valeur, une par ligne)</label>
-        <textarea id="edit-env" rows="3" class="input font-mono text-sm"></textarea>
-      </div>
-      <div class="mb-4">
-        <label class="label">requirements.txt</label>
-        <textarea id="edit-req" rows="3" class="input font-mono text-sm"></textarea>
-      </div>
-      <div class="flex gap-2 mb-4">
-        <button onclick="saveDetail()" class="btn-primary text-sm">💾 Enregistrer (redémarre le script pour appliquer)</button>
-        <button onclick="installDeps(currentDetail)" class="btn-ghost text-sm">📦 Installer dépendances</button>
-      </div>
-      <div class="mb-2 flex items-center justify-between">
-        <label class="label mb-0">📟 Logs en direct <span class="text-slate-500 font-normal">(auto-refresh 3s)</span></label>
-        <div class="flex gap-2">
-          <button onclick="clearLogs(currentDetail)" class="btn-ghost text-xs">🧹 Effacer</button>
-          <a id="download-logs" href="#" class="btn-ghost text-xs">⬇️ Télécharger</a>
-        </div>
-      </div>
-      <pre id="detail-logs" class="log-box"></pre>
-      <details class="mt-4">
-        <summary class="cursor-pointer text-sm text-slate-300 font-semibold">📝 Voir / modifier le code source</summary>
-        <textarea id="edit-code" rows="14" class="input font-mono text-xs mt-2" spellcheck="false"></textarea>
-        <button onclick="saveDetail()" class="btn-primary text-sm mt-2">💾 Enregistrer le code</button>
-      </details>
-    </div>
-  </div>
-</section>
+      </section>
 
-<!-- ============ ONGLET WEBHOOK ============ -->
-<section id="tab-webhook" class="hidden">
-  <div class="card p-6 mb-6">
-    <h2 class="font-bold text-lg mb-1">🔔 Ton URL webhook privée</h2>
-    <p class="text-sm text-slate-400 mb-3">
-      Branche cette URL dans ton service externe (TradingView, Discord, bot, etc.).
-      Chaque appel est <strong class="text-slate-200">journalisé ci-dessous</strong> : date/heure, IP, méthode, contenu…
-      Le token dans l'URL fait office de mot de passe : garde-le secret.
-    </p>
-    <div class="flex flex-col md:flex-row gap-2">
-      <code id="webhook-url" class="flex-1 bg-black/40 border border-line rounded-lg px-3 py-2.5 text-sm break-all font-mono text-emerald-300">{{ webhook_url }}</code>
-      <div class="flex gap-2">
-        <button onclick="copyWebhook()" class="btn-ghost text-sm whitespace-nowrap">📋 Copier</button>
-        <button onclick="testWebhook()" class="btn-ghost text-sm whitespace-nowrap">🧪 Test</button>
-        <button onclick="regenWebhook()" class="btn-ghost text-sm whitespace-nowrap" title="Génère une nouvelle URL et invalide l'ancienne">🔄 Nouvelle URL</button>
-      </div>
-    </div>
-    <div class="grid md:grid-cols-3 gap-3 mt-4">
-      <div class="stat"><div class="stat-num" id="stat-total">–</div><div class="stat-lbl">appels au total</div></div>
-      <div class="stat"><div class="stat-num" id="stat-24h">–</div><div class="stat-lbl">dernières 24h</div></div>
-      <div class="stat"><div class="stat-num text-sm break-all" id="stat-last">–</div><div class="stat-lbl">dernier appel</div></div>
-    </div>
-    <div class="mt-4 p-4 rounded-lg bg-black/30 border border-line">
-      <h3 class="font-semibold text-sm mb-2">⚡ Déclencher un script à chaque appel webhook (optionnel)</h3>
-      <div class="flex flex-col md:flex-row gap-3 md:items-end">
-        <div class="flex-1">
-          <label class="label">Script à exécuter</label>
-          <select id="wh-linked" class="input"><option value="">— Aucun —</option></select>
+      <!-- ===== DÉTAIL SCRIPT ===== -->
+      <section id="view-detail" class="view hidden">
+        <button onclick="showView('scripts')" class="link mb-3">← Retour aux scripts</button>
+        <div class="detail-head card pad">
+          <div class="flex-1 min-w-[220px]">
+            <div class="flex items-center gap-3 flex-wrap">
+              <h2 id="d-name" class="text-xl font-extrabold"></h2>
+              <span id="d-status"></span>
+              <span id="d-waiting" class="hidden pill pill-wait pulse">💬 attend ta réponse</span>
+            </div>
+            <div id="d-meta" class="text-xs text-slate-400 font-mono mt-1"></div>
+          </div>
+          <div class="flex flex-wrap gap-2" id="d-actions"></div>
         </div>
-        <label class="flex items-center gap-2 text-sm whitespace-nowrap"><input type="checkbox" id="wh-autorun" class="accent-indigo-500"> Activer le déclenchement auto</label>
-        <label class="flex items-center gap-2 text-sm whitespace-nowrap"><input type="checkbox" id="wh-restart" class="accent-indigo-500"> Relancer si déjà en cours</label>
-        <button onclick="saveWebhookCfg()" class="btn-primary text-sm whitespace-nowrap">💾 Enregistrer</button>
-      </div>
-      <p class="text-xs text-slate-500 mt-2">Le contenu de l'appel est injecté dans ton script via la variable d'environnement <code>WEBHOOK_PAYLOAD</code> (+ <code>WEBHOOK_EVENT_ID</code>, <code>WEBHOOK_TIME</code>).</p>
-    </div>
-  </div>
+        <div id="d-diag"></div>
+        <div class="detail-grid">
+          <!-- Console -->
+          <div class="card console-card">
+            <div class="term-head">
+              <div class="term-dots"><span></span><span></span><span></span></div>
+              <div class="term-title">Console interactive</div>
+              <div class="term-controls">
+                <input id="term-search" class="term-search" placeholder="🔍 filtrer…" oninput="filterConsole()">
+                <select id="term-level" class="term-select" onchange="filterConsole()">
+                  <option value="">Tous niveaux</option>
+                  <option value="error">❌ Erreurs</option>
+                  <option value="warn">⚠️ Alertes</option>
+                  <option value="in">❯ Réponses</option>
+                  <option value="sys">⚙️ Système</option>
+                </select>
+                <button id="term-follow" class="tbtn on" onclick="toggleFollow()" title="Suivre le direct">⬇</button>
+                <button id="term-pause" class="tbtn" onclick="togglePause()" title="Pause">⏸</button>
+                <button class="tbtn" onclick="clearConsoleView()" title="Effacer l'affichage">🧹</button>
+                <a id="term-dl" href="#" class="tbtn" title="Télécharger les logs">⬇️</a>
+              </div>
+            </div>
+            <div id="terminal" class="terminal"><div class="t-empty">Connexion à la console…</div></div>
+            <div id="waitbar" class="waitbar hidden">
+              <div class="wait-prompt"><span class="wait-ico">💬</span><code id="wait-text"></code></div>
+              <div id="wait-chips" class="chips"></div>
+              <div class="wait-row">
+                <input id="wait-input" class="input font-mono" placeholder="Ta réponse… (Entrée pour envoyer)" autocomplete="off">
+                <button onclick="sendWaitInput()" class="btn-primary text-sm whitespace-nowrap">Envoyer ⏎</button>
+              </div>
+            </div>
+          </div>
+          <!-- Panneau latéral -->
+          <div class="side-panel">
+            <div class="card pad">
+              <div class="mini-tabs">
+                <button class="mini-tab active" id="mtab-config" onclick="detailTab('config')">⚙️ Config</button>
+                <button class="mini-tab" id="mtab-code" onclick="detailTab('code')">📝 Code</button>
+                <button class="mini-tab" id="mtab-runs" onclick="detailTab('runs')">🏁 Executions</button>
+              </div>
+              <div id="dtab-config">
+                <label class="label">Nom</label>
+                <input id="cfg-name" class="input mb-3">
+                <label class="label">Arguments</label>
+                <input id="cfg-args" class="input font-mono text-sm mb-3" placeholder="--mode live">
+                <label class="label">Variables d'environnement <span class="hint">(CLE=valeur, une par ligne)</span></label>
+                <textarea id="cfg-env" rows="3" class="input font-mono text-sm mb-3" placeholder="API_KEY=xxx"></textarea>
+                <label class="label">requirements.txt</label>
+                <textarea id="cfg-req" rows="3" class="input font-mono text-sm mb-2" placeholder="requests"></textarea>
+                <div class="flex gap-2 mb-3">
+                  <button onclick="saveConfig()" class="btn-primary text-sm flex-1">💾 Enregistrer</button>
+                  <button onclick="installDeps()" class="btn-ghost text-sm">📦 Installer</button>
+                </div>
+                <div id="cfg-analysis" class="analysis-mini"></div>
+              </div>
+              <div id="dtab-code" class="hidden">
+                <div class="flex justify-between items-center mb-2">
+                  <label class="label mb-0">Code source</label>
+                  <button onclick="reanalyze()" class="link text-xs">🧠 Re-scanner</button>
+                </div>
+                <textarea id="cfg-code" rows="18" class="input font-mono code-edit" spellcheck="false"></textarea>
+                <button onclick="saveConfig()" class="btn-primary text-sm mt-2 w-full">💾 Enregistrer le code</button>
+                <p class="hint mt-2">La syntaxe est vérifiée avant enregistrement. Redémarre le script pour appliquer.</p>
+              </div>
+              <div id="dtab-runs" class="hidden">
+                <div id="d-qa"></div>
+                <div id="d-runs"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="font-bold text-lg">🧾 Historique des appels</h2>
-    <div class="flex gap-2">
-      <button onclick="loadWebhookLogs()" class="btn-ghost text-sm">🔄 Actualiser</button>
-      <button onclick="clearWebhookLogs()" class="btn-ghost text-sm">🧹 Tout effacer</button>
-    </div>
-  </div>
-  <div id="webhook-list" class="space-y-3"></div>
-  <div id="webhook-empty" class="hidden card p-10 text-center text-slate-400">
-    <div class="text-4xl mb-2">📭</div>
-    Aucun appel reçu pour le moment.<br>
-    <span class="text-sm">Clique « 🧪 Test » ou envoie une requête vers ton URL webhook.</span>
-  </div>
-</section>
+      <!-- ===== WEBHOOKS ===== -->
+      <section id="view-webhooks" class="view hidden">
+        <div class="card pad mb-5">
+          <h2 class="font-bold text-lg mb-1">🔔 Ton URL webhook privée</h2>
+          <p class="text-sm text-slate-400 mb-3">Branche-la dans ton service externe. Chaque appel est journalisé ci-dessous avec tous les détails.</p>
+          <div class="flex flex-col md:flex-row gap-2">
+            <code id="wh-url" class="wh-url">{{ webhook_url }}</code>
+            <div class="flex gap-2">
+              <button onclick="copyWebhook()" class="btn-ghost text-sm whitespace-nowrap">📋 Copier</button>
+              <button onclick="testWebhook()" class="btn-ghost text-sm whitespace-nowrap">🧪 Test</button>
+              <button onclick="regenWebhook()" class="btn-ghost text-sm whitespace-nowrap" title="Invalide l'ancienne URL">🔄 Nouvelle URL</button>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-3 gap-3 mt-4">
+            <div class="stat"><div class="stat-num" id="wh-total">–</div><div class="stat-lbl">appels au total</div></div>
+            <div class="stat"><div class="stat-num" id="wh-24h">–</div><div class="stat-lbl">dernières 24h</div></div>
+            <div class="stat"><div class="stat-num text-base break-all" id="wh-last">–</div><div class="stat-lbl">dernier appel</div></div>
+          </div>
+          <div class="mt-4"><div id="wh-chart" class="hchart"></div></div>
+          <div class="mt-4 p-4 rounded-xl bg-black/30 border border-line">
+            <h3 class="font-semibold text-sm mb-2">⚡ Déclencher un script à chaque appel <span class="hint">(rejoue tes dernières réponses automatiquement)</span></h3>
+            <div class="flex flex-col md:flex-row gap-3 md:items-end">
+              <div class="flex-1">
+                <label class="label">Script à exécuter</label>
+                <select id="wh-linked" class="input"><option value="">— Aucun —</option></select>
+              </div>
+              <label class="check"><input type="checkbox" id="wh-autorun"> Activer</label>
+              <label class="check"><input type="checkbox" id="wh-restart"> Relancer si en cours</label>
+              <button onclick="saveWebhookCfg()" class="btn-primary text-sm whitespace-nowrap">💾 Enregistrer</button>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h2 class="font-bold text-lg">🧾 Historique des appels</h2>
+          <div class="flex gap-2 flex-wrap">
+            <input id="wh-search" class="input !w-48 text-sm" placeholder="🔍 rechercher…" oninput="renderWhLogs()">
+            <select id="wh-method" class="input !w-32 text-sm" onchange="renderWhLogs()">
+              <option value="">Toutes méthodes</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+            </select>
+            <button onclick="loadWhLogs()" class="btn-ghost text-sm">🔄</button>
+            <button onclick="clearWhLogs()" class="btn-ghost text-sm">🧹 Tout effacer</button>
+          </div>
+        </div>
+        <div id="wh-list" class="space-y-3"></div>
+        <div id="wh-empty" class="hidden card pad text-center text-slate-400">
+          <div class="text-4xl mb-2">📭</div>Aucun appel reçu pour le moment.<br>
+          <span class="text-sm">Clique « 🧪 Test » ou envoie une requête vers ton URL.</span>
+        </div>
+      </section>
 
-<!-- ============ ONGLET AIDE ============ -->
-<section id="tab-help" class="hidden">
-  <div class="card p-6 space-y-6 text-sm leading-relaxed">
-    <div>
-      <h2 class="font-bold text-lg mb-2">❓ Comment ça marche ?</h2>
-      <ol class="list-decimal ml-5 space-y-1 text-slate-300">
-        <li><strong>Upload</strong> ton fichier <code>.py</code> depuis ton ordinateur (onglet Scripts).</li>
-        <li>Le site l'<strong>exécute sur le serveur Render</strong> — pas sur ton PC.</li>
-        <li>Tu peux <strong>fermer la fenêtre</strong> : le script continue de tourner. Reviens quand tu veux voir les logs ou l'arrêter.</li>
-        <li>Ton <strong>webhook</strong> : colle l'URL privée dans ton service externe, et chaque appel apparaît dans l'onglet 🔔 avec tous les détails.</li>
-      </ol>
-    </div>
-    <div>
-      <h3 class="font-bold mb-2">📦 Mon script a besoin de librairies (ex : requests, pandas) ?</h3>
-      <p class="text-slate-300">Colle ton <code>requirements.txt</code> au moment de l'upload (ou plus tard dans la fiche du script), coche « installer les dépendances », puis démarre le script.</p>
-    </div>
-    <div>
-      <h3 class="font-bold mb-2">🔔 Recevoir les données du webhook dans mon script</h3>
-      <p class="text-slate-300 mb-2">Active le « déclenchement auto » et lis la variable d'environnement dans ton code :</p>
-<pre class="log-box">import os, json
-payload = os.environ.get("WEBHOOK_PAYLOAD", "{}")
-data = json.loads(payload)
-print("Webhook reçu :", data)</pre>
-    </div>
-    <div>
-      <h3 class="font-bold mb-2">⚠️ Points importants sur Render</h3>
-      <ul class="list-disc ml-5 space-y-1 text-slate-300">
-        <li>Sur l'offre <strong>gratuite</strong>, Render met le service en pause après ~15 min sans visite : tes scripts seraient interrompus. Pour du 24/7, passe au plan <strong>Starter</strong> (voir <code>render.yaml</code>).</li>
-        <li>Les fichiers (scripts, logs, code secret) sont stockés sur un <strong>disque persistant</strong> : ils survivent aux redéploiements.</li>
-        <li>Si le serveur redémarre, les scripts <strong>ne redémarrent pas tout seuls</strong> : reviens cliquer « ▶ Démarrer ». (Astuce : le webhook avec déclenchement auto peut relancer ton script à distance.)</li>
-      </ul>
-    </div>
-    <div>
-      <h3 class="font-bold mb-2">🧪 Tester le webhook en ligne de commande</h3>
-<pre class="log-box" id="help-curl">curl -X POST "{{ webhook_url }}" \
+      <!-- ===== AIDE ===== -->
+      <section id="view-help" class="view hidden">
+        <div class="card pad help">
+          <h2>❓ Comment ça marche ?</h2>
+          <ol>
+            <li><strong>Ajoute</strong> ton script <code>.py</code> (upload ou modèle).</li>
+            <li>Le site le <strong>scanne</strong> 🧠 : questions <code>input()</code>, menus <code>1, 2, 3</code>, librairies manquantes.</li>
+            <li>Tu <strong>remplis les réponses</strong> dans le formulaire (ou tu réponds en direct dans la console).</li>
+            <li>Le script <strong>tourne sur le serveur</strong> — ferme la fenêtre, ça continue ✔</li>
+          </ol>
+          <h3>💬 Questions & menus interactifs</h3>
+          <p>Si ton script contient <code>input("URL webhook : ")</code> ou un menu <code>1 - Démarrer / 2 - Quitter</code>, le site les détecte et te propose :</p>
+          <ul>
+            <li>un <strong>formulaire avant le lancement</strong> (avec boutons de choix cliquables),</li>
+            <li>une <strong>console interactive</strong> pendant l'exécution pour répondre aux questions restantes,</li>
+            <li>la <strong>relecture automatique</strong> de tes réponses au redémarrage ou via webhook.</li>
+          </ul>
+          <h3>📦 Librairies (requests, pandas…)</h3>
+          <p>Le scan détecte les imports et propose d'ajouter les paquets au <code>requirements.txt</code>. En cas de crash <code>ModuleNotFoundError</code>, un bouton <strong>« 📦 Installer »</strong> apparaît dans le diagnostic.</p>
+          <h3>🔔 Webhook dans ton script</h3>
+<pre class="code-block">import os, json
+data = json.loads(os.environ.get("WEBHOOK_PAYLOAD", "{}"))
+print("Signal reçu :", data)</pre>
+          <h3>🧪 Tester le webhook</h3>
+          <pre class="code-block" id="help-curl">curl -X POST "{{ webhook_url }}" \
   -H "Content-Type: application/json" \
   -d '{"signal":"BUY","prix":123.4}'</pre>
+          <h3>⚠️ Sur Render</h3>
+          <ul>
+            <li>Le plan <strong>Starter</strong> garde tes scripts en vie 24/7 (le gratuit les met en veille).</li>
+            <li>Après un <strong>redéploiement</strong>, relance tes scripts (ou déclenche-les via webhook).</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ============ MODALE NOUVEAU SCRIPT ============ -->
+<div id="modal-new" class="modal hidden">
+  <div class="modal-box">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-extrabold text-lg">＋ Nouveau script</h3>
+      <button onclick="closeModal('modal-new')" class="mini-btn">✕</button>
+    </div>
+    <div class="mini-tabs mb-4">
+      <button class="mini-tab active" id="ntab-upload" onclick="newTab('upload')">⬆️ Depuis mon PC</button>
+      <button class="mini-tab" id="ntab-create" onclick="newTab('create')">📝 Créer ici</button>
+    </div>
+    <div id="npage-upload">
+      <div id="dropzone" class="dropzone">
+        <div class="text-4xl mb-2">📥</div>
+        <div class="font-bold">Glisse ton fichier .py ici</div>
+        <div class="text-sm text-slate-400">ou <span class="link">choisis un fichier</span></div>
+        <input type="file" id="file-input" accept=".py" class="hidden">
+      </div>
+      <div id="dz-file" class="hidden dz-file"></div>
+      <div class="grid md:grid-cols-2 gap-3 mt-4">
+        <div><label class="label">Nom d'affichage</label><input id="up-name" class="input" placeholder="Ex : Bot trading"></div>
+        <div><label class="label">Arguments</label><input id="up-args" class="input font-mono text-sm" placeholder="--mode live"></div>
+      </div>
+      <div class="mt-3"><label class="label">Variables d'environnement</label><textarea id="up-env" rows="2" class="input font-mono text-sm" placeholder="CLE_API=xxxx"></textarea></div>
+      <div class="mt-3"><label class="label">requirements.txt</label><textarea id="up-req" rows="2" class="input font-mono text-sm" placeholder="requests"></textarea></div>
+      <label class="check mt-3"><input type="checkbox" id="up-install" checked> 📦 Installer les dépendances après l'upload</label>
+      <div id="up-msg" class="text-sm mt-2"></div>
+      <button id="up-btn" onclick="doUpload()" class="btn-primary w-full mt-3">Uploader & analyser 🧠</button>
+    </div>
+    <div id="npage-create" class="hidden">
+      <label class="label">Nom du script</label>
+      <input id="cr-name" class="input mb-3" placeholder="Ex : Mon bot">
+      <label class="label">Modèle de départ</label>
+      <div class="tpl-grid" id="tpl-grid">
+        <button class="tpl active" data-t="blank">📄<span>Vierge</span></button>
+        <button class="tpl" data-t="interactif">💬<span>Menu interactif</span></button>
+        <button class="tpl" data-t="webhook">🔔<span>Bot webhook</span></button>
+        <button class="tpl" data-t="boucle">🔁<span>Tâche en boucle</span></button>
+      </div>
+      <button onclick="doCreate()" class="btn-primary w-full mt-4">Créer & analyser 🧠</button>
     </div>
   </div>
-</section>
+</div>
 
-<!-- Modale paramètres -->
-<div id="settings-modal" class="hidden fixed inset-0 z-50 grid place-items-center p-4" style="background:rgba(4,8,20,.75)">
-  <div class="card p-6 w-full max-w-sm">
+<!-- ============ MODALE LANCEMENT (analyse) ============ -->
+<div id="modal-launch" class="modal hidden">
+  <div class="modal-box wide">
+    <div class="flex justify-between items-center mb-1">
+      <h3 class="font-extrabold text-lg">🧠 Analyse du script</h3>
+      <button onclick="closeModal('modal-launch')" class="mini-btn">✕</button>
+    </div>
+    <p id="launch-sub" class="text-sm text-slate-400 mb-4"></p>
+    <div id="launch-body"></div>
+  </div>
+</div>
+
+<!-- ============ MODALE PARAMÈTRES ============ -->
+<div id="modal-settings" class="modal hidden">
+  <div class="modal-box small">
     <h3 class="font-bold text-lg mb-4">⚙️ Changer le code secret</h3>
     <label class="label">Code actuel</label>
     <input id="set-current" type="password" class="input mb-3">
@@ -217,15 +317,15 @@ print("Webhook reçu :", data)</pre>
     <input id="set-new" type="password" class="input mb-4">
     <div id="set-msg" class="text-sm mb-3"></div>
     <div class="flex gap-2 justify-end">
-      <button onclick="closeSettings()" class="btn-ghost text-sm">Annuler</button>
+      <button onclick="closeModal('modal-settings')" class="btn-ghost text-sm">Annuler</button>
       <button onclick="changeCode()" class="btn-primary text-sm">Enregistrer</button>
     </div>
   </div>
 </div>
 
+<div id="drop-overlay" class="hidden">📥 Dépose ton fichier .py pour l'ajouter</div>
 <div id="toast" class="hidden"></div>
 {% endblock %}
-
 {% block scripts %}
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 {% endblock %}

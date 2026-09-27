@@ -2,46 +2,60 @@
 
 Console web **privée** qui permet de :
 
-- ⬆️ **Uploader n'importe quel script `.py` depuis ton ordinateur** et l'exécuter sur le serveur
-- ▶️ Le laisser **tourner même si tu fermes la fenêtre** (exécution détachée côté serveur + logs persistants)
-- 🔐 Protéger l'accès par un **code secret que TU définis à la première visite** (le premier arrivé verrouille le site)
-- 🔔 Recevoir et **journaliser les appels webhook** (date/heure, IP, méthode, contenu…) + déclencher un script à chaque appel
+- ⬆️ **Uploader n'importe quel script `.py`** (ou le créer depuis un modèle) et l'exécuter sur le serveur
+- 🧠 **Scanner intelligemment le script** : questions `input()`, menus `1, 2, 3`, librairies manquantes, risques
+- 💬 **Remplir les réponses petit à petit** avant le lancement (boutons de choix cliquables), ou **répondre en direct** dans la console interactive
+- ▶️ Laisser tourner **même si tu fermes la fenêtre** (exécution détachée + logs persistants)
+- 📟 **Console parfaite** : horodatage, couleurs par niveau, recherche, filtres, téléchargement
+- 🩺 **Diagnostic auto des crashs** : cause en français + bouton « Installer » si librairie manquante
+- 🔐 Accès protégé par un **code secret défini à la première visite**
+- 🔔 **Webhook inbound** journalisé (date/heure, IP, contenu…) + déclenchement auto d'un script
 
 ## 🚀 Déploiement sur Render (Blueprint)
 
 1. **Push ce dossier sur GitHub** (repo privé conseillé).
 2. Sur [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint** → choisis ton repo.
-3. Render détecte `render.yaml` → clique **Apply**.
-4. Attends ~2-3 min → ouvre l'URL fournie (`https://pyrunner-xxxx.onrender.com`).
-5. 🎉 **Première visite : définis ton code secret.** Le site est alors verrouillé, toi seul y accèdes.
+3. Render détecte `render.yaml` → **Apply**.
+4. Attends ~2-3 min → ouvre l'URL → 🎉 **définis ton code secret** (1re visite).
 
-> 💡 Le plan `starter` dans `render.yaml` est volontaire :
-> - **Disque persistant** (scripts, logs, code secret conservés après redéploiement)
-> - **Pas de mise en veille** (le plan gratuit coupe tes scripts après ~15 min d'inactivité)
->
-> Pour tester en gratuit : passe `plan: free` et **retire le bloc `disk:`** (mais tout sera effacé à chaque redéploiement et les scripts s'arrêteront en veille).
+> 💡 Le plan `starter` est volontaire : **disque persistant** + **pas de mise en veille** (le plan
+> gratuit couperait tes scripts après ~15 min d'inactivité).
 
 ### Variable optionnelle
 
 | Variable | Effet |
 |---|---|
-| `SECRET_CODE` | Force le code d'accès (au lieu de la config à la 1re visite). À définir dans Render → Environment. |
+| `SECRET_CODE` | Force le code d'accès (sinon défini à la 1re visite). |
 
 ## 🖥️ Utilisation
 
-### Exécuter un script
+### Lancer un script interactif
 
-1. Onglet **📜 Mes scripts** → choisis ton `.py` (ou glisse-dépose-le sur la page).
-2. (Optionnel) arguments, variables d'environnement `CLE=valeur`, `requirements.txt`.
-3. Coche **« Démarrer immédiatement »** → **Uploader & exécuter 🚀**.
-4. Ferme la fenêtre : **ça continue de tourner** ✔. Reviens pour voir les **logs en direct**, **stop / restart**, modifier le code.
+1. **＋ Nouveau script** → upload ton `.py` (ex : `exemple_interactif.py` pour tester).
+2. Le site le **scanne** 🧠 et affiche :
+   - les **questions** détectées (`"URL webhook : "`, `"Ton choix (1-3) : "`…),
+   - les **menus** avec boutons cliquables (`1`, `2`, `3`),
+   - les **librairies** à installer, les avertissements éventuels.
+3. Tu **remplis les réponses** → **Démarrer** : elles sont envoyées automatiquement au fil des questions.
+4. S'il reste des questions (ou pour les scripts imprévisibles), la **console interactive** affiche
+   `💬 Le script attend ta réponse` : tu réponds en direct, même avec des boutons de choix.
+5. Au **redémarrage** (manuel ou via webhook), tes dernières réponses sont **rejouées automatiquement**.
+
+### Console & diagnostic
+
+- Chaque ligne est **horodatée**, colorée selon son niveau (info / succès / alerte / erreur).
+- **Recherche**, **filtre par niveau**, pause, suivi du direct, téléchargement.
+- En cas de crash : bannière **🩺 Diagnostic** (exception, fichier, ligne, explication FR) + action
+  corrective (ex : `📦 Installer requests puis relancer`).
+- La **syntaxe est vérifiée avant chaque lancement** : zéro démarrage voué à l'échec.
 
 ### Webhook
 
-1. Onglet **🔔 Webhook** → copie ton **URL privée** (`https://…/webhook/<token>`).
-2. Colle-la dans ton service externe (TradingView, bot, etc.).
-3. Chaque appel apparaît dans l'historique : **🕒 date/heure, 🌐 IP, méthode, query, headers, corps JSON/texte**.
-4. (Optionnel) **Déclencher un script à chaque appel** : choisis le script + active le déclenchement auto. Le contenu de l'appel est injecté via `WEBHOOK_PAYLOAD` :
+1. Onglet **🔔 Webhooks** → copie ton **URL privée**.
+2. Chaque appel est journalisé : **🕒 date/heure, 🌐 IP, méthode, query, headers, corps JSON/texte**,
+   avec recherche, filtre par méthode et graphique 24h.
+3. (Optionnel) **Déclencher un script à chaque appel** : les données arrivent via `WEBHOOK_PAYLOAD`
+   et tes réponses mémorisées sont rejouées.
 
 ```python
 import os, json
@@ -49,17 +63,7 @@ data = json.loads(os.environ.get("WEBHOOK_PAYLOAD", "{}"))
 print("Signal reçu :", data)
 ```
 
-Voir `exemple_bot.py` pour un modèle complet.
-
-### Tester le webhook
-
-```bash
-curl -X POST "https://TON-APP.onrender.com/webhook/TON-TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"signal":"BUY","prix":123.4}'
-```
-
-## 💻 Lancer en local (optionnel)
+## 💻 Lancer en local
 
 ```bash
 pip install -r requirements.txt
@@ -70,21 +74,20 @@ python app.py
 ## 🗂️ Structure
 
 ```
-├── app.py              # serveur Flask (auth, scripts, webhook)
-├── templates/          # setup, login, dashboard
-├── static/             # style.css, app.js
-├── render.yaml         # Blueprint Render (web service + disque)
+├── app.py                 # serveur Flask (auth, API, webhooks)
+├── analyzer.py            # scan statique (questions, menus, imports) + diagnostic crash
+├── runner.py              # exécution interactive (stdin, détection d'attente, logs structurés)
+├── templates/             # setup, login, dashboard (SPA)
+├── static/                # style.css, app.js
+├── render.yaml            # Blueprint Render (web service + disque persistant)
 ├── requirements.txt
-├── exemple_bot.py      # modèle de script à uploader
-└── data/               # stockage persistant (disque Render, ignoré par Git)
-    ├── auth.json       # hash du code secret
-    ├── scripts/        # un dossier par script : main.py, output.log, requirements.txt
-    ├── webhook.json    # token + config
-    └── webhook_logs.jsonl
+├── exemple_interactif.py  # démo : menus + questions (à uploader pour tester)
+├── exemple_bot.py         # modèle de bot webhook en continu
+└── data/                  # stockage persistant (disque Render, ignoré par Git)
 ```
 
 ## ⚠️ Notes
 
-- Si Render **redémarre** le serveur, les scripts ne redémarrent pas seuls : pense à les relancer (ou utilise le webhook en déclenchement auto pour le faire à distance).
-- Un seul worker gunicorn : voulu, pour garder la gestion des process simple et fiable.
-- Garde ton **URL webhook** et ton **code secret** pour toi : ce sont tes deux clés d'accès.
+- Après un **redéploiement Render**, relance tes scripts (ou déclenche-les via webhook).
+- Un seul worker gunicorn : voulu, pour garder le pilotage des process fiable.
+- Garde ton **URL webhook** et ton **code secret** pour toi.
