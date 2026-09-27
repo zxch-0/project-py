@@ -10,7 +10,7 @@ print("  SUPER-BOT — que voulez-vous faire ?")
 print("=" * 34)
 print("1 - Dire bonjour")
 print("2 - Calculer un double")
-print("3 - Configurer le webhook")
+print("3 - Tester une notif Discord")
 
 choix = input("Votre choix (1-3) : ")
 
@@ -24,11 +24,11 @@ elif choix == "2":
     except ValueError:
         print("Valeur non numerique.")
 elif choix == "3":
-    url = input("URL webhook : ")
-    print(f"Webhook configure : {url}")
-    print("Envoi d'un signal de test...")
+    url = input("URL du webhook Discord : ")
+    print(f"URL enregistree : {url}")
+    print("Envoi d'un message de test...")
     time.sleep(1)
-    print("Signal envoye avec succes.")
+    print("Message envoye avec succes.")
 else:
     print(f"Choix « {choix} » inconnu, utilisez 1, 2 ou 3.")
 

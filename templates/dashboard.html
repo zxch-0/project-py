@@ -18,9 +18,9 @@
       <button class="nav-item" id="nav-scripts" onclick="showView('scripts')">
         <svg viewBox="0 0 24 24" class="nav-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
         Scripts <span class="nav-count" id="nav-scripts-count"></span></button>
-      <button class="nav-item" id="nav-webhooks" onclick="showView('webhooks')">
-        <svg viewBox="0 0 24 24" class="nav-svg"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-        Webhooks <span class="nav-count" id="nav-wh-count"></span></button>
+      <button class="nav-item" id="nav-discord" onclick="showView('discord')">
+        <svg viewBox="0 0 24 24" class="nav-svg"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        Discord <span class="nav-count" id="nav-dc-count"></span></button>
       <button class="nav-item" id="nav-help" onclick="showView('help')">
         <svg viewBox="0 0 24 24" class="nav-svg"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
         Aide</button>
@@ -58,7 +58,7 @@
         </div>
         <div class="ov-grid">
           <div class="card pad">
-            <div class="card-title">Webhooks — dernieres 24h <button class="link" onclick="showView('webhooks')">details</button></div>
+            <div class="card-title">Discord — dernieres 24h <button class="link" onclick="showView('discord')">details</button></div>
             <div id="ov-chart" class="hchart"></div>
           </div>
           <div class="card pad">
@@ -195,53 +195,41 @@
         </div>
       </section>
 
-      <!-- ===== WEBHOOKS ===== -->
-      <section id="view-webhooks" class="view hidden">
+      <!-- ===== DISCORD ===== -->
+      <section id="view-discord" class="view hidden">
         <div class="card pad mb-5">
-          <h2 class="font-bold text-lg mb-1">URL webhook privee</h2>
-          <p class="text-sm text-slate-400 mb-3">Branchez-la dans votre service externe. Chaque appel est journalise ci-dessous avec tous les details.</p>
-          <div class="flex flex-col md:flex-row gap-2">
-            <code id="wh-url" class="wh-url">{{ webhook_url }}</code>
-            <div class="flex gap-2">
-              <button onclick="copyWebhook()" class="btn-ghost text-sm whitespace-nowrap">Copier</button>
-              <button onclick="testWebhook()" class="btn-ghost text-sm whitespace-nowrap">Tester</button>
-              <button onclick="regenWebhook()" class="btn-ghost text-sm whitespace-nowrap" title="Invalide l'ancienne URL">Regenerer</button>
-            </div>
+          <h2 class="font-bold text-lg mb-1">Notifications Discord</h2>
+          <p class="text-sm text-slate-400 mb-3">Recevez un message sur Discord au demarrage, a la fin, en cas d'echec, ou quand un script attend votre reponse.<br>Dans Discord : parametres du salon, Integrations, Webhooks, Nouveau webhook, copiez l'URL.</p>
+          <label class="label">URL du webhook Discord</label>
+          <input id="dc-url" class="input mb-3 font-mono text-sm" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+          <div class="flex gap-3 flex-wrap mb-3">
+            <label class="check"><input type="checkbox" id="dc-enabled"> Activer</label>
+            <label class="check"><input type="checkbox" id="dc-started" checked> Demarrage</label>
+            <label class="check"><input type="checkbox" id="dc-success" checked> Succes</label>
+            <label class="check"><input type="checkbox" id="dc-error" checked> Echec</label>
+            <label class="check"><input type="checkbox" id="dc-waiting" checked> Attente de reponse</label>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="saveDiscordCfg()" class="btn-primary text-sm">Enregistrer</button>
+            <button onclick="testDiscord()" class="btn-ghost text-sm">Envoyer un test</button>
           </div>
           <div class="grid md:grid-cols-3 gap-3 mt-4">
-            <div class="stat"><div class="stat-num" id="wh-total">–</div><div class="stat-lbl">appels au total</div></div>
-            <div class="stat"><div class="stat-num" id="wh-24h">–</div><div class="stat-lbl">dernieres 24h</div></div>
-            <div class="stat"><div class="stat-num text-base break-all" id="wh-last">–</div><div class="stat-lbl">dernier appel</div></div>
-          </div>
-          <div class="mt-4"><div id="wh-chart" class="hchart"></div></div>
-          <div class="mt-4 p-4 rounded-xl bg-black/30 border border-line">
-            <h3 class="font-semibold text-sm mb-2">Declencher un script a chaque appel <span class="hint">( rejoue vos dernieres reponses automatiquement)</span></h3>
-            <div class="flex flex-col md:flex-row gap-3 md:items-end">
-              <div class="flex-1">
-                <label class="label">Script a executer</label>
-                <select id="wh-linked" class="input"><option value="">— Aucun —</option></select>
-              </div>
-              <label class="check"><input type="checkbox" id="wh-autorun"> Activer</label>
-              <label class="check"><input type="checkbox" id="wh-restart"> Relancer si en cours</label>
-              <button onclick="saveWebhookCfg()" class="btn-primary text-sm whitespace-nowrap">Enregistrer</button>
-            </div>
+            <div class="stat"><div class="stat-num" id="dc-total">–</div><div class="stat-lbl">notifs envoyees</div></div>
+            <div class="stat"><div class="stat-num" id="dc-24h">–</div><div class="stat-lbl">dernieres 24h</div></div>
+            <div class="stat"><div class="stat-num text-base break-all" id="dc-last">–</div><div class="stat-lbl">derniere notif</div></div>
           </div>
         </div>
         <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h2 class="font-bold text-lg">Historique des appels</h2>
+          <h2 class="font-bold text-lg">Historique des envois</h2>
           <div class="flex gap-2 flex-wrap">
-            <input id="wh-search" class="input !w-48 text-sm" placeholder="Rechercher..." oninput="renderWhLogs()">
-            <select id="wh-method" class="input !w-32 text-sm" onchange="renderWhLogs()">
-              <option value="">Toutes methodes</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
-            </select>
-            <button onclick="loadWhLogs()" class="btn-ghost text-sm">Actualiser</button>
-            <button onclick="clearWhLogs()" class="btn-ghost text-sm">Tout effacer</button>
+            <button onclick="loadDcLogs()" class="btn-ghost text-sm">Actualiser</button>
+            <button onclick="clearDcLogs()" class="btn-ghost text-sm">Tout effacer</button>
           </div>
         </div>
-        <div id="wh-list" class="space-y-3"></div>
-        <div id="wh-empty" class="hidden card pad text-center text-slate-400">
-          <div class="empty-title">Aucun appel recu pour le moment.</div>
-          <span class="text-sm">Cliquez « Tester » ou envoyez une requete vers votre URL.</span>
+        <div id="dc-list" class="space-y-3"></div>
+        <div id="dc-empty" class="hidden card pad text-center text-slate-400">
+          <div class="empty-title">Aucune notification envoyee pour le moment.</div>
+          <span class="text-sm">Collez votre URL, activez, puis cliquez « Envoyer un test ».</span>
         </div>
       </section>
 
@@ -256,11 +244,11 @@
             <li>Il <strong>tourne sur le serveur</strong> : vous pouvez fermer la fenetre, l'execution continue.</li>
           </ol>
           <h3>Questions et menus interactifs</h3>
-          <p>Si le script contient <code>input("URL webhook : ")</code>, <code>read -p</code> ou un menu <code>1 - Demarrer / 2 - Quitter</code>, le site les detecte et propose :</p>
+          <p>Si le script contient <code>input("URL du webhook Discord : ")</code>, <code>read -p</code> ou un menu <code>1 - Demarrer / 2 - Quitter</code>, le site les detecte et propose :</p>
           <ul>
             <li>un <strong>formulaire avant le lancement</strong> (avec boutons de choix cliquables),</li>
             <li>une <strong>console interactive</strong> pendant l'execution pour les questions restantes,</li>
-            <li>la <strong>relecture automatique</strong> de vos reponses au redemarrage ou via webhook.</li>
+            <li>la <strong>relecture automatique</strong> de vos reponses au redemarrage.</li>
           </ul>
           <h3>Projets multi-fichiers</h3>
           <p>Uploadez une archive : le site l'extrait, liste les fichiers, detecte les <strong>points d'entree possibles</strong> et les manifestes (<code>requirements.txt</code>, <code>package.json</code>). Choisissez l'entree, installez les dependances (pip ou npm), puis lancez. Chaque fichier est modifiable dans l'editeur integre.</p>
@@ -271,18 +259,12 @@
             <li><strong>Shell</strong> (.sh) — detection des <code>read -p</code> et menus <code>select</code>.</li>
             <li><strong>Personnalise</strong> — tapez n'importe quelle commande (php, ruby, deno...) avec <code>{file}</code> comme script.</li>
           </ul>
-          <h3>Webhook dans votre script</h3>
-<pre class="code-block">import os, json
-data = json.loads(os.environ.get("WEBHOOK_PAYLOAD", "{}"))
-print("Signal recu :", data)</pre>
-          <h3>Tester le webhook</h3>
-          <pre class="code-block" id="help-curl">curl -X POST "{{ webhook_url }}" \
-  -H "Content-Type: application/json" \
-  -d '{"signal":"BUY","prix":123.4}'</pre>
+          <h3>Notifications Discord</h3>
+          <p>Onglet <strong>Discord</strong> : collez l'URL de votre webhook et activez. Le site vous ecrit automatiquement au demarrage d'un script, a sa fin, en cas d'echec et quand un script attend votre reponse. Le bouton « Envoyer un test » verifie que tout fonctionne.</p>
           <h3>Notes Render</h3>
           <ul>
             <li>Le plan <strong>Starter</strong> garde vos scripts en vie 24/7 (le plan gratuit les met en veille).</li>
-            <li>Apres un <strong>redeploiement</strong>, relancez vos scripts (ou declenchez-les via webhook).</li>
+            <li>Apres un <strong>redeploiement</strong>, relancez vos scripts.</li>
           </ul>
         </div>
       </section>
@@ -338,7 +320,6 @@ print("Signal recu :", data)</pre>
       <div class="tpl-grid" id="tpl-grid">
         <button class="tpl active" data-t="py_blank"><span class="tpl-ico">PY</span><span>Vierge</span></button>
         <button class="tpl" data-t="py_menu"><span class="tpl-ico">PY</span><span>Menu interactif</span></button>
-        <button class="tpl" data-t="py_webhook"><span class="tpl-ico">PY</span><span>Bot webhook</span></button>
         <button class="tpl" data-t="py_loop"><span class="tpl-ico">PY</span><span>Boucle</span></button>
         <button class="tpl" data-t="js_blank"><span class="tpl-ico">JS</span><span>Node vierge</span></button>
         <button class="tpl" data-t="sh_blank"><span class="tpl-ico">SH</span><span>Shell vierge</span></button>
@@ -364,5 +345,5 @@ print("Signal recu :", data)</pre>
 <div id="toast" class="hidden"></div>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='app.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=3"></script>
 {% endblock %}

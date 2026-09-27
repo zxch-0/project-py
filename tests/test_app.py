@@ -274,32 +274,90 @@ def test_custom_runtime(client):
     assert "CUSTOM_OK" in _console_text(fin)
 
 
-# ---------------------------------------------------------- webhooks ---
+# ---------------------------------------------------------- discord ---
 
-def test_webhook_flow(client):
+def test_discord_config_validation(client):
     c = client
-    cfg = c.get("/api/webhooks/config").get_json()["config"]
-    path = "/" + "/".join(cfg["url"].split("/")[3:])
-    r = c.post(path, json={"signal": "BUY", "x": 1})
-    assert r.status_code == 200
-    logs = c.get("/api/webhooks/logs?limit=5").get_json()
+    d = c.get("/api/discord/config").get_json()
+    assert d["ok"] is True
+    assert d["config"]["enabled"] is False
+    # URL non-Discord refusee
+    r = c.put("/api/discord/config", json={"webhook_url": "https://example.com/x",
+                                           "enabled": True})
+    assert r.status_code == 400
+    # Activation sans URL refusee
+    r = c.put("/api/discord/config", json={"enabled": True})
+    assert r.status_code == 400
+    # URL Discord acceptee
+    url = "https://discord.com/api/webhooks/123/abc"
+    r = c.put("/api/discord/config",
+              json={"webhook_url": url, "enabled": True,
+                    "events": {"started": True, "success": False,
+                               "error": True, "waiting": True}})
+    assert r.get_json()["ok"] is True
+    d = c.get("/api/discord/config").get_json()["config"]
+    assert d["webhook_url"] == url and d["enabled"] is True
+    assert d["events"]["success"] is False
+    # Desactive pour ne pas spammer les autres tests
+    c.put("/api/discord/config", json={"enabled": False})
+
+
+def test_discord_send_and_logs(client, monkeypatch):
+    c = client
+    calls = []
+
+    class FakeResp:
+        status_code = 204
+
+    def fake_post(url, json=None, timeout=None):
+        calls.append((url, json))
+        return FakeResp()
+
+    import requests as rq
+    monkeypatch.setattr(rq, "post", fake_post)
+    c.put("/api/discord/config",
+          json={"webhook_url": "https://discord.com/api/webhooks/1/t",
+                "enabled": True})
+    ok = __import__("app").send_discord("started", "Demo", "message test",
+                                        "sid1", background=False)
+    assert ok is True
+    assert calls and calls[0][0].endswith("/1/t")
+    assert calls[0][1]["content"] == "message test"
+    logs = c.get("/api/discord/logs?limit=5").get_json()
     assert logs["stats"]["total"] >= 1
-    assert logs["logs"][0]["body"]["signal"] == "BUY"
-    r = c.post("/webhook/token-faux", json={})
-    assert r.status_code == 404
+    assert logs["logs"][0]["text"] == "message test"
+    assert logs["logs"][0]["ok"] is True
+    # Evenement desactive -> pas d'envoi
+    c.put("/api/discord/config", json={"events": {"started": False}})
+    n = len(calls)
+    __import__("app").send_discord("started", "Demo", "silence", background=False)
+    assert len(calls) == n
+    c.put("/api/discord/config", json={"enabled": False})
+    c.delete("/api/discord/logs")
 
 
-def test_webhook_autorun(client):
+def test_discord_run_notifications(client, monkeypatch):
     c = client
-    sid = _upload_py(c, "import os\nprint('P:' + os.environ.get('WEBHOOK_PAYLOAD', '{}'))\n", "WH")
-    c.put("/api/webhooks/config",
-          json={"linked_script_id": sid, "auto_run": True})
-    cfg = c.get("/api/webhooks/config").get_json()["config"]
-    path = "/" + "/".join(cfg["url"].split("/")[3:])
-    r = c.post(path, json={"a": 1})
-    assert r.get_json()["triggered"]["action"] == "run"
-    fin = _wait_status(c, sid)
-    assert '"a": 1' in _console_text(fin) or "'a': 1" in _console_text(fin)
+
+    class FakeResp:
+        status_code = 204
+
+    import requests as rq
+    monkeypatch.setattr(rq, "post", lambda *a, **k: FakeResp())
+    c.put("/api/discord/config",
+          json={"webhook_url": "https://discord.com/api/webhooks/1/t",
+                "enabled": True,
+                "events": {"started": True, "success": True,
+                           "error": True, "waiting": True}})
+    sid = _upload_py(c, "print('coucou')\n", "DC")
+    c.post(f"/api/scripts/{sid}/run", json={})
+    _wait_runs(c, sid)
+    import time as _t
+    _t.sleep(1.5)  # laisse le thread d'envoi finir
+    logs = c.get("/api/discord/logs?limit=10").get_json()["logs"]
+    events = [e["event"] for e in logs if e.get("script_id") == sid]
+    assert "started" in events and "success" in events
+    c.put("/api/discord/config", json={"enabled": False})
 
 
 # ---------------------------------------------------------- divers ---

@@ -7,7 +7,7 @@ let DETAIL_DATA = null;
 let CONSOLE_SINCE = 0;
 let CONSOLE_PAUSE = false;
 let CONSOLE_FOLLOW = true;
-let WH_LOGS = [];
+let DC_LOGS = [];
 let LAUNCH = null;
 let NEW_TPL = 'py_blank';
 let EDITOR_PATH = null;
@@ -34,6 +34,7 @@ const _P = {
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   zap: '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  message: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
 };
 function icon(name, size) {
   size = size || 14;
@@ -48,7 +49,7 @@ function toast(msg, ok) {
   const el = $('toast');
   el.textContent = msg;
   el.classList.remove('hidden');
-  el.style.borderColor = ok ? '#34d399' : '#f87171';
+  el.style.borderColor = ok ? '#22c55e' : '#737373';
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.add('hidden'), 3800);
 }
@@ -97,12 +98,12 @@ const TITLES = {
   overview: ["Vue d'ensemble", "Tout ce qui se passe sur le serveur, en un coup d'oeil."],
   scripts: ['Scripts', 'Programmes et projets : ils tournent meme si vous fermez cette page.'],
   detail: ['Script', 'Console interactive, configuration et historique.'],
-  webhooks: ['Webhooks', 'Chaque appel recu, journalise dans les moindres details.'],
+  discord: ['Discord', 'Notifications automatiques sur votre salon.'],
   help: ['Aide', 'Tout comprendre en 2 minutes.'],
 };
 function showView(name) {
   VIEW = name;
-  for (const v of ['overview', 'scripts', 'detail', 'webhooks', 'help']) {
+  for (const v of ['overview', 'scripts', 'detail', 'discord', 'help']) {
     $('view-' + v).classList.toggle('hidden', v !== name);
     const nav = $('nav-' + v);
     if (nav) nav.classList.toggle('active', v === name || (name === 'detail' && v === 'scripts'));
@@ -113,7 +114,7 @@ function showView(name) {
   $('page-sub').textContent = t[1];
   if (name === 'overview') loadOverview();
   if (name === 'scripts') loadScripts();
-  if (name === 'webhooks') { loadWhCfg(); loadWhLogs(); }
+  if (name === 'discord') { loadDcCfg(); loadDcLogs(); }
   window.scrollTo({ top: 0 });
 }
 
@@ -132,17 +133,17 @@ async function loadOverview() {
     const d = await api('/api/overview');
     const s = d.stats;
     const cards = [
-      ['zap', '#34d399', s.running, 'en cours'],
-      ['file', '#6366f1', s.scripts_total, 'scripts'],
-      ['clock', '#22d3ee', s.total_runs, 'executions'],
-      ['check', '#a855f7', s.success_rate == null ? '–' : s.success_rate + '%', 'reussite'],
-      ['globe', '#fbbf24', s.webhooks_24h, 'webhooks 24h'],
-      ['info', '#34d399', `<span style="font-size:1.2rem">${fmtDur(s.uptime_s)}</span>`, 'serveur en ligne'],
+      ['zap', '#22c55e', s.running, 'en cours'],
+      ['file', '#a3a3a3', s.scripts_total, 'scripts'],
+      ['clock', '#737373', s.total_runs, 'executions'],
+      ['check', '#22c55e', s.success_rate == null ? '–' : s.success_rate + '%', 'reussite'],
+      ['message', '#22c55e', s.discord_24h, 'notifs Discord 24h'],
+      ['info', '#a3a3a3', `<span style="font-size:1.2rem">${fmtDur(s.uptime_s)}</span>`, 'serveur en ligne'],
     ];
     $('ov-stats').innerHTML = cards.map(c =>
       `<div class="stat-card"><div class="i" style="color:${c[1]}">${icon(c[0], 20)}</div><div class="v">${c[2]}</div><div class="l">${c[3]}</div></div>`).join('');
     SCRIPTS = d.scripts;
-    updateNavCounts(d.scripts, s.webhooks_total);
+    updateNavCounts(d.scripts, s.discord_total);
     $('ov-running').innerHTML = d.running.length ? d.running.map(r => `
       <div class="ov-run" onclick="openScript('${r.id}')">
         <span class="dot dot-ok pulse"></span>
@@ -154,7 +155,7 @@ async function loadOverview() {
     $('ov-activity').innerHTML = d.activity.length ? d.activity.map(a => `
       <div class="act"><span class="act-ico">${icon(ACT_ICON[a.icon] || 'info', 14)}</span><span class="flex-1">${esc(a.text)}</span><span class="t">${fmtTime(a.t)}</span></div>`).join('')
       : '<div class="empty-note">Pas encore d\'activite.</div>';
-    $('ov-chart').innerHTML = chartHTML(d.webhook.per_hour);
+    $('ov-chart').innerHTML = chartHTML(d.discord.per_hour);
     const rt = d.runtimes || {};
     $('ov-runtimes').innerHTML = ['python', 'node', 'bash'].map(k => {
       const r = rt[k] || {};
@@ -163,10 +164,10 @@ async function loadOverview() {
     setHealth(true);
   } catch (e) { console.error(e); setHealth(false); }
 }
-function updateNavCounts(scripts, whTotal) {
+function updateNavCounts(scripts, dcTotal) {
   const running = scripts.filter(s => s.status === 'running').length;
   $('nav-scripts-count').textContent = scripts.length ? `${running}/${scripts.length}` : '';
-  $('nav-wh-count').textContent = whTotal || '';
+  $('nav-dc-count').textContent = dcTotal || '';
 }
 function setHealth(ok) {
   $('health-dot').className = 'dot ' + (ok ? 'dot-ok pulse' : 'dot-err');
@@ -178,7 +179,7 @@ async function loadScripts() {
   try {
     const d = await api('/api/status');
     SCRIPTS = d.scripts;
-    updateNavCounts(d.scripts, d.webhook.stats.total);
+    updateNavCounts(d.scripts, d.discord.stats.total);
     const n = d.counts;
     $('scripts-count').textContent = n.total ? `${n.running} en cours · ${n.total} au total` : '';
     $('scripts-empty').classList.toggle('hidden', n.total > 0);
@@ -810,98 +811,67 @@ async function doCreate() {
   } catch (e) { toast(e.message, false); }
 }
 
-/* ---------------- webhooks ---------------- */
-async function loadWhCfg() {
+/* ---------------- discord ---------------- */
+const DC_EVENT_LABEL = { started: 'Demarrage', success: 'Succes', error: 'Echec', waiting: 'Attente', test: 'Test' };
+async function loadDcCfg() {
   try {
-    const d = await api('/api/webhooks/config');
-    $('wh-url').textContent = d.config.url;
-    $('wh-autorun').checked = !!d.config.auto_run;
-    $('wh-restart').checked = d.config.restart_if_running !== false;
-    const sel = $('wh-linked');
-    const cur = d.config.linked_script_id || sel.value;
-    const st = await api('/api/status');
-    SCRIPTS = st.scripts;
-    sel.innerHTML = '<option value="">— Aucun —</option>' + st.scripts.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-    if (cur) sel.value = cur;
-    const hc = $('help-curl');
-    if (hc) hc.textContent = `curl -X POST "${d.config.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"signal":"BUY","prix":123.4}'`;
+    const d = await api('/api/discord/config');
+    $('dc-url').value = d.config.webhook_url || '';
+    $('dc-enabled').checked = !!d.config.enabled;
+    for (const e of ['started', 'success', 'error', 'waiting']) {
+      $('dc-' + e).checked = d.config.events ? d.config.events[e] !== false : true;
+    }
   } catch (e) { console.error(e); }
 }
-async function loadWhLogs() {
+async function saveDiscordCfg() {
   try {
-    const d = await api('/api/webhooks/logs?limit=100');
-    WH_LOGS = d.logs;
-    $('wh-total').textContent = d.stats.total ?? 0;
-    $('wh-24h').textContent = d.stats.last_24h ?? 0;
-    $('wh-last').textContent = d.stats.last_call ? fmtDate(d.stats.last_call.time) : 'jamais';
-    $('wh-chart').innerHTML = chartHTML(d.stats.per_hour);
-    const badge = $('nav-wh-count');
-    if (badge) badge.textContent = d.stats.total || '';
-    renderWhLogs();
-  } catch (e) { console.error(e); }
-}
-function renderWhLogs() {
-  const q = ($('wh-search').value || '').toLowerCase();
-  const method = $('wh-method').value;
-  const list = WH_LOGS.filter(e => {
-    if (method && e.method !== method) return false;
-    if (q && !JSON.stringify(e).toLowerCase().includes(q)) return false;
-    return true;
-  });
-  $('wh-empty').classList.toggle('hidden', list.length > 0);
-  $('wh-list').innerHTML = list.map(e => {
-    const trig = e.triggered_script
-      ? (e.triggered_script.error ? `<div class="text-red-300 text-xs mt-1">Declenchement : ${esc(e.triggered_script.error)}</div>`
-        : `<div class="text-amber-300 text-xs mt-1">Declenchement : « ${esc(e.triggered_script.name)} » — ${esc(e.triggered_script.action)} ${e.triggered_script.ok ? 'OK' : 'Echec'}</div>`)
-      : '';
-    const query = e.query && Object.keys(e.query).length ? `<div class="text-xs text-slate-400 mt-1">Query : ${esc(JSON.stringify(e.query))}</div>` : '';
-    const body = e.body_is_json ? JSON.stringify(e.body, null, 2) : String(e.body || '');
-    return `
-    <div class="card wh-card">
-      <div class="wh-head">
-        <span class="pill ${e.method === 'POST' ? 'pill-running' : 'pill-stopped'}">${esc(e.method)}</span>
-        <span class="wh-time">${fmtDate(e.time)}</span>
-        <span class="text-xs text-slate-400">${esc(e.ip)}</span>
-        <span class="text-xs text-slate-500">${e.body_size} octets · ${e.duration_ms ?? '?'} ms</span>
-        <button class="mini-btn ml-auto" onclick="this.closest('.wh-card').querySelector('.wh-detail').classList.toggle('hidden')">Details</button>
-      </div>${query}${trig}
-      <div class="wh-detail hidden">
-        <div class="label mt-2">Contenu ${e.body_is_json ? '(JSON)' : '(texte)'}</div>
-        <pre class="wh-pre" style="color:#7dd3fc">${esc(body.slice(0, 4000)) || '(vide)'}</pre>
-        <div class="label mt-2">Headers</div>
-        <pre class="wh-pre" style="color:#94a3b8;max-height:140px">${esc(JSON.stringify(e.headers || {}, null, 2))}</pre>
-        <div class="text-xs text-slate-500 mt-1">UA : ${esc(e.user_agent || '–')} · CT : ${esc(e.content_type || '–')} · #${esc(e.id)}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-async function saveWebhookCfg() {
-  try {
-    await api('/api/webhooks/config', {
+    const events = {};
+    for (const e of ['started', 'success', 'error', 'waiting']) events[e] = $('dc-' + e).checked;
+    await api('/api/discord/config', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linked_script_id: $('wh-linked').value || null, auto_run: $('wh-autorun').checked, restart_if_running: $('wh-restart').checked })
+      body: JSON.stringify({ webhook_url: $('dc-url').value.trim(), enabled: $('dc-enabled').checked, events })
     });
-    toast('Configuration webhook enregistree');
+    toast('Configuration Discord enregistree');
   } catch (e) { toast(e.message, false); }
 }
-function copyWebhook() {
-  navigator.clipboard.writeText($('wh-url').textContent.trim()).then(() => toast('URL copiee')).catch(() => toast('Copie impossible', false));
-}
-async function regenWebhook() {
-  if (!confirm('Generer une nouvelle URL ? L\'ancienne sera immediatement invalidee.')) return;
-  try { const d = await api('/api/webhooks/regenerate', { method: 'POST' }); $('wh-url').textContent = d.url; toast('Nouvelle URL generee'); }
-  catch (e) { toast(e.message, false); }
-}
-async function testWebhook() {
-  toast('Envoi d\'un appel de test...');
+async function testDiscord() {
+  toast("Envoi d'un message de test...");
   try {
-    const d = await api('/api/webhooks/test', { method: 'POST', allowFail: true });
-    if (d.ok) { toast('Appel de test recu'); loadWhLogs(); } else toast(d.error || 'Echec', false);
+    await api('/api/discord/test', { method: 'POST', allowFail: true }).then(d => {
+      if (!d.ok) throw new Error(d.error || 'Echec');
+    });
+    toast('Message de test envoye sur Discord');
+    loadDcLogs();
   } catch (e) { toast(e.message, false); }
 }
-async function clearWhLogs() {
-  if (!confirm('Effacer tout l\'historique webhook ?')) return;
-  try { await api('/api/webhooks/logs', { method: 'DELETE' }); loadWhLogs(); } catch (e) { toast(e.message, false); }
+async function loadDcLogs() {
+  try {
+    const d = await api('/api/discord/logs?limit=100');
+    DC_LOGS = d.logs;
+    $('dc-total').textContent = d.stats.total ?? 0;
+    $('dc-24h').textContent = d.stats.last_24h ?? 0;
+    $('dc-last').textContent = d.stats.last_send ? fmtDate(d.stats.last_send.time) : 'jamais';
+    const badge = $('nav-dc-count');
+    if (badge) badge.textContent = d.stats.total || '';
+    renderDcLogs();
+  } catch (e) { console.error(e); }
+}
+function renderDcLogs() {
+  const list = DC_LOGS || [];
+  $('dc-empty').classList.toggle('hidden', list.length > 0);
+  $('dc-list').innerHTML = list.map(e => `
+    <div class="card dc-card">
+      <div class="dc-head">
+        <span class="pill ${e.ok ? (e.event === 'error' ? 'pill-error' : 'pill-running') : 'pill-stopped'}">${esc(DC_EVENT_LABEL[e.event] || e.event)}</span>
+        <span class="dc-time">${fmtDate(e.time)}</span>
+        <span class="text-sm">${esc(e.text || '')}</span>
+        ${e.ok ? '' : `<span class="text-xs text-slate-500">${esc(e.error || 'echec')}</span>`}
+      </div>
+    </div>`).join('');
+}
+async function clearDcLogs() {
+  if (!confirm("Effacer tout l'historique Discord ?")) return;
+  try { await api('/api/discord/logs', { method: 'DELETE' }); loadDcLogs(); } catch (e) { toast(e.message, false); }
 }
 
 /* ---------------- refresh global ---------------- */
@@ -909,7 +879,7 @@ function refresh() {
   if (VIEW === 'overview') loadOverview();
   else if (VIEW === 'scripts') loadScripts();
   else if (VIEW === 'detail') loadDetailData();
-  else if (VIEW === 'webhooks') loadWhLogs();
+  else if (VIEW === 'discord') loadDcLogs();
 }
 
 /* ---------------- init ---------------- */
@@ -923,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(() => {
     if (VIEW === 'overview') loadOverview();
     else if (VIEW === 'scripts') loadScripts();
-    else if (VIEW === 'webhooks') loadWhLogs();
+    else if (VIEW === 'discord') loadDcLogs();
   }, 10000);
   setInterval(() => { if (VIEW === 'detail') pollConsole(); }, 1000);
 });

@@ -11,7 +11,7 @@ Console web **privee** pour executer des scripts et projets complets sur un serv
 - **Console structuree** : horodatage, niveaux, recherche, filtres, telechargement
 - **Diagnostic de crash** : cause en francais + action corrective (installation pip/npm)
 - **Runtimes** : Python, Node.js, Shell, ou commande personnalisee (php, ruby, deno...)
-- **Webhook entrant** journalise (date, IP, contenu) + declenchement auto d'un script
+- **Notifications Discord** : demarrage, fin, echec, attente de reponse
 
 ## Deploiement sur Render (Blueprint)
 
@@ -42,7 +42,7 @@ d'inactivite).
    `package.json` via npm).
 4. **Remplissez les reponses** : elles sont envoyees automatiquement au fil des questions.
    S'il reste une question, la console affiche une zone de reponse (avec boutons de choix).
-5. Au **redemarrage** (manuel ou via webhook), vos dernieres reponses sont **rejouees**.
+5. Au **redemarrage manuel**, vos dernieres reponses sont **rejouees**.
 
 ### Console et diagnostic
 
@@ -52,27 +52,14 @@ d'inactivite).
   avec action corrective (ex : installer le paquet manquant puis relancer).
 - La **syntaxe est verifiee avant chaque lancement** (Python, Node.js, Shell).
 
-### Webhook
+### Notifications Discord
 
-1. Onglet **Webhooks** : copiez votre **URL privee** (`/webhook/<token>`).
-2. Chaque appel est journalise : **date/heure, IP, methode, query, headers, corps JSON/texte**,
-   avec recherche, filtre par methode et graphique 24h.
-3. Optionnel : **declencher un script a chaque appel**. Les donnees arrivent via la variable
-   `WEBHOOK_PAYLOAD` et vos reponses memorisees sont rejouees :
-
-```python
-import os, json
-data = json.loads(os.environ.get("WEBHOOK_PAYLOAD", "{}"))
-print("Signal recu :", data)
-```
-
-Test rapide :
-
-```bash
-curl -X POST "https://VOTRE-APP.onrender.com/webhook/VOTRE-TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"signal":"BUY","prix":123.4}'
-```
+1. Dans Discord : parametres du salon, **Integrations**, **Webhooks**, Nouveau webhook,
+   copiez l'URL (`https://discord.com/api/webhooks/...`).
+2. Onglet **Discord** : collez l'URL, cochez les evenements
+   (demarrage, succes, echec, attente de reponse), **activez**, enregistrez.
+3. Cliquez **« Envoyer un test »** : le message doit apparaitre sur votre salon.
+4. Chaque envoi est journalise (onglet Discord + graphique 24h sur la vue d'ensemble).
 
 ## Lancer en local
 
@@ -91,7 +78,7 @@ python -m pytest tests/ -q
 ## Structure
 
 ```
-├── app.py                 # serveur Flask (API, webhooks)
+├── app.py                 # serveur Flask (API, notifications Discord)
 ├── analyzer.py            # analyse statique (Python/Node/Shell) + diagnostic
 ├── runner.py              # execution interactive (stdin, logs structures)
 ├── runtimes.py            # detection et resolution des runtimes
@@ -103,15 +90,15 @@ python -m pytest tests/ -q
 ├── static/                # style.css, app.js
 ├── tests/                 # suite de tests (pytest)
 ├── exemple_interactif.py  # demo : menus + questions (a uploader pour tester)
-├── exemple_bot.py         # modele de bot webhook en continu
+├── exemple_bot.py         # modele de bot en continu (a uploader pour tester)
 └── data/                  # stockage persistant (disque Render, ignore par Git)
 ```
 
 ## Notes
 
-- Apres un **redeploiement Render**, relancez vos scripts (ou declenchez-les via webhook).
+- Apres un **redeploiement Render**, relancez vos scripts.
 - Un seul worker gunicorn : voulu, pour un pilotage fiable des processus.
 - Formats d'archive : `.zip`, `.tar.gz` et `.7z` (pur Python) toujours supportes ;
   `.rar` fonctionne des qu'un outil `unrar`/`unar`/`bsdtar` est present — le build
   Render l'installe automatiquement (vendored, sans compilation).
-- Gardez votre **URL webhook** et l'URL du site pour vous (acces direct, sans compte).
+- Gardez l'URL du site pour vous (acces direct, sans compte).

@@ -4,7 +4,7 @@ zach-runner — Console privee pour executer des projets et scripts sur Render.
 - Upload de fichiers (.py, .js, .sh...) ou de projets complets (.zip, .tar.gz, .rar, .7z)
 - Analyse intelligente : questions, menus a choix, dependances, risques
 - Console interactive : reponses pre-remplies + reponses en direct (stdin)
-- Logs structures, diagnostic de crash, webhooks avec historique detaille
+- Logs structures, diagnostic de crash, notifications Discord
 - Acces direct, sans compte (console personnelle)
 """
 import json
@@ -51,13 +51,14 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
 SCRIPTS_ROOT = DATA_DIR / "scripts"
 
 SCRIPTS_META_FILE = DATA_DIR / "scripts.json"
-WEBHOOK_CONFIG_FILE = DATA_DIR / "webhook.json"
-WEBHOOK_LOGS_FILE = DATA_DIR / "webhook_logs.jsonl"
+DISCORD_CONFIG_FILE = DATA_DIR / "discord.json"
+DISCORD_LOGS_FILE = DATA_DIR / "discord_logs.jsonl"
 ACTIVITY_FILE = DATA_DIR / "activity.jsonl"
 
 MAX_FILE_MB = int(os.environ.get("MAX_FILE_MB", "16"))
-MAX_WEBHOOK_LOGS = 500
-MAX_WEBHOOK_BODY = 20 * 1024
+MAX_DISCORD_LOGS = 200
+DISCORD_TIMEOUT = 10
+DISCORD_EVENTS = ("started", "success", "error", "waiting")
 MAX_RUNS = 20
 MAX_ACTIVITY = 200
 MAX_EDITOR_BYTES = 200 * 1024
@@ -222,6 +223,26 @@ def refresh_status(meta: dict) -> dict:
 
 # --- demarrage / arret ---
 
+def _maybe_notify_waiting(m: dict, lp) -> None:
+    """Notifie Discord une seule fois quand le script attend une reponse."""
+    try:
+        waiting = bool(lp and lp.is_waiting())
+    except Exception:
+        waiting = False
+    if waiting and not m.get("waiting_notified"):
+        m["waiting_notified"] = True
+        prompt = ""
+        try:
+            prompt = (lp.current_prompt() or "").strip()
+        except Exception:
+            prompt = ""
+        name = m.get("name", m["id"])
+        send_discord("waiting", name,
+                     f"\u23f3 « {name} » attend votre reponse"
+                     + (f" : {prompt[:200]}" if prompt else ""), m["id"])
+    elif not waiting and m.get("waiting_notified"):
+        m["waiting_notified"] = False
+
 def on_script_exit(script_id: str, info: dict):
     token = info.get("run_token")
     with META_LOCK:
@@ -255,9 +276,17 @@ def on_script_exit(script_id: str, info: dict):
     name = m.get("name", script_id)
     if info.get("reason") == "success":
         log_activity("ok", f"« {name} » termine avec succes ({info.get('duration_s', 0):.0f}s)", script_id)
+        send_discord("success", name,
+                     f"\u2705 « {name} » termine avec succes ({info.get('duration_s', 0):.0f}s)",
+                     script_id)
     elif info.get("reason") == "crash":
         d = info.get("diagnosis") or {}
-        log_activity("error", f"« {name} » : echec ({d.get('exception', 'erreur')})", script_id)
+        exc = d.get("exception") or "erreur"
+        log_activity("error", f"« {name} » : echec ({exc})", script_id)
+        send_discord("error", name,
+                     f"\u274c « {name} » : echec ({exc})"
+                     + (f" — {str(d.get('message', ''))[:200]}" if d.get("message") else ""),
+                     script_id)
     else:
         log_activity("stop", f"« {name} » arrete", script_id)
 
@@ -362,8 +391,11 @@ def start_script(meta: dict, answers: list | None = None,
     meta["exit_code"] = None
     meta["last_diagnosis"] = None
     meta["detached"] = False
+    meta["waiting_notified"] = False
     log_activity("play", f"« {meta.get('name')} » demarre ({runtime})" +
                  (f" — {len(clean_answers)} reponse(s) auto" if clean_answers else ""), sid)
+    send_discord("started", meta.get("name", sid),
+                 f"\u25b6 « {meta.get('name', sid)} » demarre ({runtime})", sid)
     return True, f"Demarre (PID {pid}, {runtime})"
 
 def stop_script(meta: dict) -> tuple[bool, str]:
@@ -390,41 +422,43 @@ def stop_script(meta: dict) -> tuple[bool, str]:
     meta["pid"] = None
     return True, "Deja arrete"
 
-# --- webhooks : stockage ---
+# --- discord : stockage + envoi ---
 
-def load_webhook_config() -> dict:
-    cfg = _read_json(WEBHOOK_CONFIG_FILE, None)
-    if isinstance(cfg, dict) and cfg.get("token"):
-        return cfg
-    cfg = {"token": secrets.token_urlsafe(24), "created_at": utcnow_iso(),
-           "linked_script_id": None, "auto_run": False,
-           "restart_if_running": True, "pass_payload": True}
-    _write_json(WEBHOOK_CONFIG_FILE, cfg)
-    return cfg
+DISCORD_URL_PREFIXES = ("https://discord.com/api/webhooks/",
+                        "https://discordapp.com/api/webhooks/")
 
-def save_webhook_config(cfg: dict) -> None:
-    _write_json(WEBHOOK_CONFIG_FILE, cfg)
+def load_discord_config() -> dict:
+    cfg = _read_json(DISCORD_CONFIG_FILE, None)
+    if not isinstance(cfg, dict):
+        cfg = {}
+    events = cfg.get("events") if isinstance(cfg.get("events"), dict) else {}
+    return {"webhook_url": (cfg.get("webhook_url") or "").strip(),
+            "enabled": bool(cfg.get("enabled")),
+            "events": {e: bool(events.get(e, True)) for e in DISCORD_EVENTS}}
 
-def append_webhook_log(entry: dict) -> None:
+def save_discord_config(cfg: dict) -> None:
+    _write_json(DISCORD_CONFIG_FILE, cfg)
+
+def append_discord_log(entry: dict) -> None:
     try:
-        with open(WEBHOOK_LOGS_FILE, "a", encoding="utf-8") as f:
+        with open(DISCORD_LOGS_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError:
-        pass
+        return
     try:
-        with open(WEBHOOK_LOGS_FILE, "r", encoding="utf-8") as f:
+        with open(DISCORD_LOGS_FILE, "r", encoding="utf-8") as f:
             lines = f.readlines()
-        if len(lines) > MAX_WEBHOOK_LOGS:
-            with open(WEBHOOK_LOGS_FILE, "w", encoding="utf-8") as f:
-                f.writelines(lines[-MAX_WEBHOOK_LOGS:])
+        if len(lines) > MAX_DISCORD_LOGS:
+            with open(DISCORD_LOGS_FILE, "w", encoding="utf-8") as f:
+                f.writelines(lines[-MAX_DISCORD_LOGS:])
     except OSError:
         pass
 
-def read_webhook_logs(limit: int = 100) -> list:
-    if not WEBHOOK_LOGS_FILE.exists():
+def read_discord_logs(limit: int = 100) -> list:
+    if not DISCORD_LOGS_FILE.exists():
         return []
     try:
-        with open(WEBHOOK_LOGS_FILE, "r", encoding="utf-8") as f:
+        with open(DISCORD_LOGS_FILE, "r", encoding="utf-8") as f:
             lines = [l for l in f.read().splitlines() if l.strip()]
     except OSError:
         return []
@@ -436,11 +470,13 @@ def read_webhook_logs(limit: int = 100) -> list:
             continue
     return out
 
-def webhook_stats() -> dict:
-    logs = read_webhook_logs(MAX_WEBHOOK_LOGS)
+def discord_stats() -> dict:
+    logs = read_discord_logs(MAX_DISCORD_LOGS)
     now = time.time()
     last_24h, per_hour = 0, [0] * 24
     for e in logs:
+        if not e.get("ok"):
+            continue
         try:
             ts = datetime.fromisoformat(e.get("time", "")).timestamp()
             age_h = (now - ts) / 3600
@@ -449,9 +485,44 @@ def webhook_stats() -> dict:
                 per_hour[min(23, int(age_h))] += 1
         except Exception:
             continue
-    return {"total": len(logs), "last_24h": last_24h,
-            "last_call": logs[0] if logs else None,
+    return {"total": sum(1 for e in logs if e.get("ok")),
+            "last_24h": last_24h,
+            "last_send": next((e for e in logs if e.get("ok")), None),
             "per_hour": list(reversed(per_hour))}
+
+def _discord_post(url: str, text: str) -> tuple[bool, str]:
+    import requests as rq
+    try:
+        r = rq.post(url, json={"content": text[:1900],
+                               "username": "zach-runner"},
+                    timeout=DISCORD_TIMEOUT)
+        if 200 <= r.status_code < 300:
+            return True, ""
+        return False, f"Discord a repondu HTTP {r.status_code}"
+    except Exception as e:
+        return False, str(e)[:200]
+
+def send_discord(event: str, script_name: str, text: str,
+                 script_id: str | None = None, background: bool = True) -> bool:
+    """Envoie une notification Discord si l'evenement est active."""
+    cfg = load_discord_config()
+    url = cfg.get("webhook_url", "")
+    if not cfg.get("enabled") or not url or not cfg.get("events", {}).get(event):
+        return False
+    if background:
+        threading.Thread(target=_discord_send_and_log,
+                         args=(event, script_name, text, script_id, url),
+                         daemon=True).start()
+        return True
+    return _discord_send_and_log(event, script_name, text, script_id, url)
+
+def _discord_send_and_log(event: str, script_name: str, text: str,
+                          script_id: str | None, url: str) -> bool:
+    ok, err = _discord_post(url, text)
+    append_discord_log({"time": utcnow_iso(), "event": event,
+                        "script_id": script_id, "script_name": script_name,
+                        "text": text, "ok": ok, "error": err})
+    return ok
 
 def archive_support() -> dict:
     import shutil as _sh
@@ -473,9 +544,7 @@ def archive_support() -> dict:
 
 @app.route("/")
 def dashboard():
-    cfg = load_webhook_config()
-    webhook_url = url_for("webhook_receiver", token=cfg["token"], _external=True)
-    return render_template("dashboard.html", webhook_url=webhook_url)
+    return render_template("dashboard.html")
 
 # -------------------------------------------------------------- API ---
 
@@ -492,6 +561,7 @@ def api_runtimes():
 def script_summary(m: dict) -> dict:
     refresh_status(m)
     lp = get_live(m["id"])
+    _maybe_notify_waiting(m, lp)
     runs = m.get("runs") or []
     ok_runs = sum(1 for r in runs if r.get("reason") == "success")
     return {
@@ -523,23 +593,21 @@ def api_overview():
     running = [s for s in scripts if s["status"] == "running"]
     total_runs = sum(s["runs_count"] for s in scripts)
     total_ok = sum(s["success_count"] for s in scripts)
-    cfg = load_webhook_config()
-    stats = webhook_stats()
+    stats = discord_stats()
     return jsonify({
         "ok": True,
         "stats": {
             "scripts_total": len(scripts), "running": len(running),
             "total_runs": total_runs,
             "success_rate": round(100 * total_ok / total_runs) if total_runs else None,
-            "webhooks_total": stats["total"], "webhooks_24h": stats["last_24h"],
+            "discord_total": stats["total"], "discord_24h": stats["last_24h"],
             "uptime_s": int(time.time() - BOOT_TIME),
         },
         "running": running,
         "scripts": sorted(scripts, key=lambda s: s.get("created_at") or "", reverse=True),
         "activity": read_activity(12),
         "runtimes": all_runtimes_status(),
-        "webhook": {"url": url_for("webhook_receiver", token=cfg["token"], _external=True),
-                    "per_hour": stats["per_hour"], "last_call": stats["last_call"]},
+        "discord": {"per_hour": stats["per_hour"], "last_send": stats["last_send"]},
     })
 
 @app.route("/api/status")
@@ -549,15 +617,12 @@ def api_status():
         scripts = [script_summary(m) for m in meta.values()]
         save_scripts_meta(meta)
     scripts.sort(key=lambda s: s.get("created_at") or "", reverse=True)
-    cfg = load_webhook_config()
-    stats = webhook_stats()
+    stats = discord_stats()
     return jsonify({
         "ok": True, "scripts": scripts,
         "counts": {"total": len(scripts),
                    "running": sum(1 for s in scripts if s["status"] == "running")},
-        "webhook": {"url": url_for("webhook_receiver", token=cfg["token"], _external=True),
-                    "linked_script_id": cfg.get("linked_script_id"),
-                    "auto_run": cfg.get("auto_run"), "stats": stats},
+        "discord": {"stats": stats},
         "activity": read_activity(8),
     })
 
@@ -583,28 +648,6 @@ elif choix == "2":
     print(f"Le double de {n} = {int(n) * 2}")
 else:
     print("Au revoir.")
-'''),
-    "py_webhook": ("Python — Bot webhook", "main.py",
-                   '''"""Recoit les donnees du webhook via WEBHOOK_PAYLOAD."""
-import json
-import os
-import time
-from datetime import datetime
-
-print("Bot demarre, en attente de signaux...", flush=True)
-
-payload_raw = os.environ.get("WEBHOOK_PAYLOAD")
-if payload_raw:
-    print(f"Declenche par webhook : {os.environ.get('WEBHOOK_TIME')}", flush=True)
-    try:
-        data = json.loads(payload_raw)
-        print(f"Signal : {data}", flush=True)
-    except json.JSONDecodeError:
-        print(f"Brut : {payload_raw[:500]}", flush=True)
-
-while True:
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] En vie", flush=True)
-    time.sleep(60)
 '''),
     "py_loop": ("Python — Tache en boucle", "main.py",
                 '''"""Se repete toutes les X secondes."""
@@ -1019,11 +1062,6 @@ def api_script_delete(script_id):
         shutil.rmtree(script_dir(script_id), ignore_errors=True)
         meta.pop(script_id, None)
         save_scripts_meta(meta)
-        cfg = load_webhook_config()
-        if cfg.get("linked_script_id") == script_id:
-            cfg["linked_script_id"] = None
-            cfg["auto_run"] = False
-            save_webhook_config(cfg)
     log_activity("trash", f"« {m.get('name')} » supprime")
     return jsonify({"ok": True})
 
@@ -1327,150 +1365,62 @@ def api_script_logs_download(script_id):
     return send_file(lp_p, as_attachment=True,
                      download_name=f"{m.get('name', 'script')}-console.log")
 
-# ------------------------------------------------- webhook entrant ---
+# ------------------------------------------------- notifications Discord ---
 
-@app.route("/webhook/<token>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
-def webhook_receiver(token):
-    cfg = load_webhook_config()
-    if not secrets.compare_digest(token or "", cfg.get("token", "")):
-        return jsonify({"ok": False, "error": "Token invalide"}), 404
-    started = time.time()
-    raw_body = request.get_data() or b""
-    body_text = raw_body[:MAX_WEBHOOK_BODY].decode("utf-8", errors="replace")
-    body_json = None
-    if body_text.strip():
-        try:
-            body_json = json.loads(body_text)
-        except Exception:
-            body_json = None
-    ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-          or request.remote_addr or "?")
-    entry = {
-        "id": secrets.token_hex(4), "time": utcnow_iso(), "method": request.method,
-        "path": request.path, "ip": ip,
-        "user_agent": request.headers.get("User-Agent", "")[:300],
-        "content_type": request.headers.get("Content-Type", "")[:200],
-        "query": dict(request.args),
-        "headers": {k: v[:500] for k, v in request.headers.items()
-                    if k.lower() not in ("cookie", "authorization")},
-        "body": body_json if body_json is not None else body_text[:5000],
-        "body_is_json": body_json is not None,
-        "body_size": len(raw_body), "triggered_script": None,
-    }
-    action_msg = None
-    if cfg.get("auto_run") and cfg.get("linked_script_id"):
-        with META_LOCK:
-            meta = load_scripts_meta()
-            m = meta.get(cfg["linked_script_id"])
-            if m:
-                refresh_status(m)
-                already = m.get("status") == "running"
-                extra = {}
-                if cfg.get("pass_payload", True):
-                    extra["WEBHOOK_PAYLOAD"] = body_text[:50000]
-                    extra["WEBHOOK_EVENT_ID"] = entry["id"]
-                    extra["WEBHOOK_TIME"] = entry["time"]
-                    extra["WEBHOOK_METHOD"] = request.method
-                replay = [q.get("answer", "") for q in (m.get("qa_history") or [])]
-                if already and cfg.get("restart_if_running", True):
-                    stop_script(m)
-                    save_scripts_meta(meta)
-                    time.sleep(0.6)
-                    meta = load_scripts_meta()
-                    m = meta.get(cfg["linked_script_id"])
-                    ok, msg = start_script(m, answers=replay, extra_env=extra)
-                    action_msg = f"relance : {msg}"
-                    entry["triggered_script"] = {"id": m["id"], "name": m.get("name"),
-                                                 "action": "restart", "ok": ok, "message": msg}
-                elif already:
-                    action_msg = "deja en cours (relance desactivee)"
-                    entry["triggered_script"] = {"id": m["id"], "name": m.get("name"),
-                                                 "action": "skipped", "ok": True, "message": action_msg}
-                else:
-                    ok, msg = start_script(m, answers=replay, extra_env=extra)
-                    action_msg = f"execution : {msg}"
-                    entry["triggered_script"] = {"id": m["id"], "name": m.get("name"),
-                                                 "action": "run", "ok": ok, "message": msg}
-                save_scripts_meta(meta)
-            else:
-                entry["triggered_script"] = {"error": "Script lie introuvable"}
-    entry["duration_ms"] = round((time.time() - started) * 1000, 1)
-    append_webhook_log(entry)
-    log_activity("webhook", f"Webhook {request.method} recu ({entry['body_size']} octets)" +
-                 (f" — {action_msg}" if action_msg else ""))
-    return jsonify({"ok": True, "event_id": entry["id"],
-                    "triggered": entry["triggered_script"],
-                    "message": action_msg or "Webhook recu et journalise"}), 200
+@app.route("/api/discord/config", methods=["GET"])
+def api_discord_config():
+    return jsonify({"ok": True, "config": load_discord_config()})
 
-@app.route("/api/webhooks/logs")
-def api_webhook_logs():
-    limit = max(1, min(int(request.args.get("limit", 100)), MAX_WEBHOOK_LOGS))
-    return jsonify({"ok": True, "logs": read_webhook_logs(limit),
-                    "stats": webhook_stats()})
+@app.route("/api/discord/config", methods=["PUT"])
+def api_discord_config_update():
+    cfg = load_discord_config()
+    data = request.get_json(force=True, silent=True) or {}
+    if "webhook_url" in data:
+        url = (data["webhook_url"] or "").strip()
+        if url and not url.startswith(DISCORD_URL_PREFIXES):
+            return jsonify({"ok": False, "error":
+                            "URL invalide : collez l'URL du webhook Discord "
+                            "(https://discord.com/api/webhooks/...)"}), 400
+        cfg["webhook_url"] = url
+    if "enabled" in data:
+        cfg["enabled"] = bool(data["enabled"])
+    if isinstance(data.get("events"), dict):
+        for e in DISCORD_EVENTS:
+            if e in data["events"]:
+                cfg["events"][e] = bool(data["events"][e])
+    if cfg.get("enabled") and not cfg.get("webhook_url"):
+        return jsonify({"ok": False, "error":
+                        "Collez d'abord votre URL de webhook Discord"}), 400
+    save_discord_config(cfg)
+    return jsonify({"ok": True})
 
-@app.route("/api/webhooks/logs", methods=["DELETE"])
-def api_webhook_logs_clear():
+@app.route("/api/discord/test", methods=["POST"])
+def api_discord_test():
+    cfg = load_discord_config()
+    url = cfg.get("webhook_url", "")
+    if not url:
+        return jsonify({"ok": False, "error": "Aucune URL Discord configuree"}), 400
+    ok = _discord_send_and_log("test", "—",
+        "\u2705 Test zach-runner : les notifications Discord fonctionnent.", None, url)
+    if not ok:
+        return jsonify({"ok": False, "error":
+                        "Envoi impossible — verifiez l'URL dans Discord"}), 502
+    return jsonify({"ok": True})
+
+@app.route("/api/discord/logs")
+def api_discord_logs():
+    limit = max(1, min(int(request.args.get("limit", 100)), MAX_DISCORD_LOGS))
+    return jsonify({"ok": True, "logs": read_discord_logs(limit),
+                    "stats": discord_stats()})
+
+@app.route("/api/discord/logs", methods=["DELETE"])
+def api_discord_logs_clear():
     try:
-        if WEBHOOK_LOGS_FILE.exists():
-            WEBHOOK_LOGS_FILE.unlink()
+        if DISCORD_LOGS_FILE.exists():
+            DISCORD_LOGS_FILE.unlink()
     except OSError as e:
         return jsonify({"ok": False, "error": str(e)}), 500
     return jsonify({"ok": True})
-
-@app.route("/api/webhooks/config", methods=["GET"])
-def api_webhook_config():
-    cfg = load_webhook_config()
-    return jsonify({"ok": True, "config": {
-        "url": url_for("webhook_receiver", token=cfg["token"], _external=True),
-        "linked_script_id": cfg.get("linked_script_id"),
-        "auto_run": cfg.get("auto_run"),
-        "restart_if_running": cfg.get("restart_if_running"),
-        "pass_payload": cfg.get("pass_payload"),
-        "created_at": cfg.get("created_at")}})
-
-@app.route("/api/webhooks/config", methods=["PUT"])
-def api_webhook_config_update():
-    cfg = load_webhook_config()
-    data = request.get_json(force=True, silent=True) or {}
-    if "linked_script_id" in data:
-        lid = data["linked_script_id"]
-        if lid:
-            with META_LOCK:
-                meta = load_scripts_meta()
-            if lid not in meta:
-                return jsonify({"ok": False, "error": "Script lie introuvable"}), 400
-        cfg["linked_script_id"] = lid or None
-    for key in ("auto_run", "restart_if_running", "pass_payload"):
-        if key in data:
-            cfg[key] = bool(data[key])
-    if cfg.get("auto_run") and not cfg.get("linked_script_id"):
-        return jsonify({"ok": False, "error":
-                        "Choisissez un script avant d'activer l'execution auto"}), 400
-    save_webhook_config(cfg)
-    return jsonify({"ok": True})
-
-@app.route("/api/webhooks/regenerate", methods=["POST"])
-def api_webhook_regenerate():
-    cfg = load_webhook_config()
-    cfg["token"] = secrets.token_urlsafe(24)
-    cfg["created_at"] = utcnow_iso()
-    save_webhook_config(cfg)
-    log_activity("refresh", "URL webhook regeneree")
-    return jsonify({"ok": True, "url": url_for("webhook_receiver", token=cfg["token"], _external=True)})
-
-@app.route("/api/webhooks/test", methods=["POST"])
-def api_webhook_test():
-    import requests as rq
-    cfg = load_webhook_config()
-    url = url_for("webhook_receiver", token=cfg["token"], _external=True)
-    try:
-        r = rq.post(url, json={"test": True,
-                               "message": "Appel de test depuis le tableau de bord",
-                               "time": utcnow_iso()}, timeout=15)
-        return jsonify({"ok": r.ok, "status": r.status_code,
-                        "response": r.text[:2000]})
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Envoi impossible : {e}"}), 502
 
 # ------------------------------------------------------- erreurs ---
 

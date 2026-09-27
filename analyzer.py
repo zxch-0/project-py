@@ -164,8 +164,6 @@ def _summarize(report: dict, third: list, feats: dict) -> str:
     if third:
         shown = ", ".join(third[:4]) + ("…" if len(third) > 4 else "")
         bits.append(f"{len(third)} dependance{'s' if len(third) > 1 else ''} externe{'s' if len(third) > 1 else ''} ({shown})")
-    if feats.get("webhook_payload"):
-        bits.append("Lit les donnees du webhook (WEBHOOK_PAYLOAD)")
     if feats.get("loop"):
         bits.append("Tourne en continu")
     return " — ".join(bits)
@@ -191,7 +189,6 @@ def analyze_python(code: str, local_modules: set | None = None) -> dict:
     raw_inputs, print_calls = [], []
     third, std, rel = set(), set(), set()
     feats = {"network": False, "files": False, "env": False,
-             "webhook_payload": "WEBHOOK_PAYLOAD" in code,
              "loop": False, "sleep": False, "subprocess": False, "args": False}
     risks = []
 
@@ -343,8 +340,7 @@ def analyze_node(code: str) -> dict:
         "network": bool(re.search(r"\b(fetch|axios|http|https|ws|WebSocket)\b", code)),
         "files": bool(re.search(r"\bfs\b|readFile|writeFile", code)),
         "env": "process.env" in code,
-        "webhook_payload": "WEBHOOK_PAYLOAD" in code,
-        "loop": bool(re.search(r"while\s*\(\s*true\s*\)|setInterval|createServer|\.listen\(", code)),
+                "loop": bool(re.search(r"while\s*\(\s*true\s*\)|setInterval|createServer|\.listen\(", code)),
         "sleep": "setTimeout" in code,
         "subprocess": bool(re.search(r"child_process|exec\(|spawn\(", code)),
         "args": "process.argv" in code,
@@ -443,8 +439,7 @@ def analyze_shell(code: str) -> dict:
         "network": bool(re.search(r"\b(curl|wget|ssh|scp)\b", code)),
         "files": bool(re.search(r"cat\s|cp\s|mv\s|rm\s|mkdir|>|>>", code)),
         "env": bool(re.search(r"\$\{?\w+\}?", code)),
-        "webhook_payload": "WEBHOOK_PAYLOAD" in code,
-        "loop": bool(re.search(r"while\s+true|while\s*:|for\s+\w+\s+in", code)),
+                "loop": bool(re.search(r"while\s+true|while\s*:|for\s+\w+\s+in", code)),
         "sleep": bool(re.search(r"\bsleep\b", code)),
         "subprocess": False, "args": bool(re.search(r"\$[1-9$@#]", code)),
     }
@@ -548,8 +543,7 @@ def _diagnose_python(lines: list, exit_code) -> dict | None:
     elif short == "NameError":
         hint = "Variable ou fonction inconnue — faute de frappe ou import oublie."
     elif short == "KeyError":
-        hint = ("Cle de dictionnaire inexistante. Si les donnees viennent d'un webhook, "
-                "verifiez le contenu recu dans l'onglet Webhooks.")
+        hint = "Cle de dictionnaire inexistante — verifiez le contenu recu dans la console."
     elif short == "ValueError":
         hint = "Valeur inattendue (ex : int('abc'), mauvais format de donnee)."
     elif short == "TypeError":
