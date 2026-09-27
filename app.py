@@ -92,6 +92,15 @@ def _get_or_create_app_secret() -> str:
 app.secret_key = _get_or_create_app_secret()
 app.config["MAX_CONTENT_LENGTH"] = (MAX_ARCHIVE_MB + 32) * 1024 * 1024
 app.permanent_session_lifetime = 60 * 60 * 24 * 30
+# Cookie de session : doit survivre dans l'apercu integre (contexte tiers, HTTPS).
+# SameSite=None + Secure exige par les navigateurs ; Partitioned (CHIPS) pour les
+# navigateurs qui bloquent les cookies tiers. Production servie en HTTPS (Render).
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_PARTITIONED=True,
+    SESSION_COOKIE_HTTPONLY=True,
+)
 
 ENV_SECRET_CODE = os.environ.get("SECRET_CODE", "").strip()
 BOOT_TIME = time.time()
